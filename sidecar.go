@@ -232,9 +232,8 @@ func (sm *sidecarMutator) createSidecar(pod *corev1.Pod) ([]corev1.Container, []
 				message: fmt.Sprintf("config map: '%s', not found", configMapName),
 				code:    http.StatusBadRequest,
 			}
-		} else {
-			return nil, nil, errors.Wrapf(err, "error retrieving config map '%s'", configMapName)
 		}
+		return nil, nil, errors.Wrapf(err, "error retrieving config map '%s'", configMapName)
 	}
 
 	var intCfg integrationCfg
