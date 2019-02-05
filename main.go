@@ -56,6 +56,11 @@ func main() {
 		logger.Errorw("could not watch folder", "folder", watchDir, "err", err)
 	}
 
+	k8sClient, err := newK8sClient()
+	if err != nil {
+		logger.Errorw("Couldn't connect to k8s api: %s", err)
+	}
+
 	whsvr := &WebhookServer{
 		keyFile:     s.TLSKeyFile,
 		certFile:    s.TLSCertFile,
@@ -68,6 +73,8 @@ func main() {
 		logger: logger,
 	}
 	whsvr.server.TLSConfig = &tls.Config{GetCertificate: whsvr.getCert}
+	whsvr.mutators = append(whsvr.mutators, newEnvVarMutator(whsvr.clusterName))
+	whsvr.mutators = append(whsvr.mutators, newSidecarMutator(whsvr.clusterName, k8sClient))
 
 	mux := http.NewServeMux()
 	mux.Handle("/mutate", withLoggingMiddleware(logger)(withTimeoutMiddleware(s.Timeout)(whsvr)))

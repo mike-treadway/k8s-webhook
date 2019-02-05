@@ -1,0 +1,210 @@
+[
+    {
+        "op": "add",
+        "path": "/spec/containers/0/env",
+        "value": [
+            {
+                "name": "NEW_RELIC_METADATA_KUBERNETES_CLUSTER_NAME",
+                "value": "foobar"
+            }
+        ]
+    },
+    {
+        "op": "add",
+        "path": "/spec/containers/0/env/-",
+        "value": {
+            "name": "NEW_RELIC_METADATA_KUBERNETES_NODE_NAME",
+            "valueFrom": {
+                "fieldRef": {
+                    "fieldPath": "spec.nodeName"
+                }
+            }
+        }
+    },
+    {
+        "op": "add",
+        "path": "/spec/containers/0/env/-",
+        "value": {
+            "name": "NEW_RELIC_METADATA_KUBERNETES_NAMESPACE_NAME",
+            "valueFrom": {
+                "fieldRef": {
+                    "fieldPath": "metadata.namespace"
+                }
+            }
+        }
+    },
+    {
+        "op": "add",
+        "path": "/spec/containers/0/env/-",
+        "value": {
+            "name": "NEW_RELIC_METADATA_KUBERNETES_POD_NAME",
+            "valueFrom": {
+                "fieldRef": {
+                    "fieldPath": "metadata.name"
+                }
+            }
+        }
+    },
+    {
+        "op": "add",
+        "path": "/spec/containers/0/env/-",
+        "value": {
+            "name": "NEW_RELIC_METADATA_KUBERNETES_CONTAINER_NAME",
+            "value": "c1"
+        }
+    },
+    {
+        "op": "add",
+        "path": "/spec/containers/0/env/-",
+        "value": {
+            "name": "NEW_RELIC_METADATA_KUBERNETES_DEPLOYMENT_NAME",
+            "value": "test"
+        }
+    },
+    {
+        "op": "add",
+        "path": "/spec/containers/1/env",
+        "value": [
+            {
+                "name": "NEW_RELIC_METADATA_KUBERNETES_CLUSTER_NAME",
+                "value": "foobar"
+            }
+        ]
+    },
+    {
+        "op": "add",
+        "path": "/spec/containers/1/env/-",
+        "value": {
+            "name": "NEW_RELIC_METADATA_KUBERNETES_NODE_NAME",
+            "valueFrom": {
+                "fieldRef": {
+                    "fieldPath": "spec.nodeName"
+                }
+            }
+        }
+    },
+    {
+        "op": "add",
+        "path": "/spec/containers/1/env/-",
+        "value": {
+            "name": "NEW_RELIC_METADATA_KUBERNETES_NAMESPACE_NAME",
+            "valueFrom": {
+                "fieldRef": {
+                    "fieldPath": "metadata.namespace"
+                }
+            }
+        }
+    },
+    {
+        "op": "add",
+        "path": "/spec/containers/1/env/-",
+        "value": {
+            "name": "NEW_RELIC_METADATA_KUBERNETES_POD_NAME",
+            "valueFrom": {
+                "fieldRef": {
+                    "fieldPath": "metadata.name"
+                }
+            }
+        }
+    },
+    {
+        "op": "add",
+        "path": "/spec/containers/1/env/-",
+        "value": {
+            "name": "NEW_RELIC_METADATA_KUBERNETES_CONTAINER_NAME",
+            "value": "c2"
+        }
+    },
+    {
+        "op": "add",
+        "path": "/spec/containers/1/env/-",
+        "value": {
+            "name": "NEW_RELIC_METADATA_KUBERNETES_DEPLOYMENT_NAME",
+            "value": "test"
+        }
+    },
+    {
+        "op": "add",
+        "path": "/spec/containers/-",
+        "value": {
+            "name": "newrelic-sidecar",
+            "image": "sidecar-image",
+            "env": [
+                {
+                    "name": "NEW_RELIC_METADATA_KUBERNETES_CLUSTER_NAME",
+                    "value": "foobar"
+                },
+                {
+                    "name": "NEW_RELIC_METADATA_KUBERNETES_NODE_NAME",
+                    "valueFrom": {
+                        "fieldRef": {
+                            "fieldPath": "spec.nodeName"
+                        }
+                    }
+                },
+                {
+                    "name": "NEW_RELIC_METADATA_KUBERNETES_NAMESPACE_NAME",
+                    "valueFrom": {
+                        "fieldRef": {
+                            "fieldPath": "metadata.namespace"
+                        }
+                    }
+                },
+                {
+                    "name": "NEW_RELIC_METADATA_KUBERNETES_POD_NAME",
+                    "valueFrom": {
+                        "fieldRef": {
+                            "fieldPath": "metadata.name"
+                        }
+                    }
+                },
+                {
+                    "name": "NEW_RELIC_METADATA_KUBERNETES_CONTAINER_NAME",
+                    "value": "c1"
+                },
+                {
+                    "name": "NEW_RELIC_METADATA_KUBERNETES_DEPLOYMENT_NAME",
+                    "value": "test"
+                },
+                {
+                    "name": "NRIA_IS_FORWARD_ONLY",
+                    "value": "true"
+                },
+                {
+                    "name": "NRIA_OVERRIDE_HOST_ROOT"
+                }
+            ],
+            "resources": {},
+            "volumeMounts": [
+                {
+                    "name": "integration-config",
+                    "mountPath": "/var/db/newrelic-infra/integrations.d/integration.yaml",
+                    "subPath": "config.yaml"
+                },
+                {
+                    "name": "integration-config",
+                    "mountPath": "/var/db/newrelic-infra/newrelic-integrations/definition.yaml",
+                    "subPath": "definition.yaml"
+                }
+            ],
+            "imagePullPolicy": "IfNotPresent"
+        }
+    },
+    {
+        "op": "add",
+        "path": "/spec/volumes/-",
+        "value": {
+            "name": "integration-config",
+            "configMap": {
+                "name": "my-config"
+            }
+        }
+    },
+    {
+        "op": "add",
+        "path": "/metadata/annotations",
+        "value": {
+            "newrelic.com/integrations-sidecar-injector-status": "injected"
+        }
+    }
+]
