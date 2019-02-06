@@ -118,7 +118,7 @@ func TestServeHTTP(t *testing.T) {
 			expectedBodyWhenHTTPError: fmt.Sprintf("object not present in request body: %q\n", missingObjectRequestBody),
 		},
 		{
-			name:               "mutation applied - with sidecar",
+			name:               "sidecar mutation applied - with sidecar",
 			requestBody:        makeTestData(t, "default", map[string]string{"newrelic.com/integrations-sidecar-configmap": configName}),
 			contentType:        "application/json",
 			expectedStatusCode: http.StatusOK,
@@ -133,7 +133,7 @@ func TestServeHTTP(t *testing.T) {
 			},
 		},
 		{
-			name:                      "mutation applied - wrong config map name",
+			name:                      "sidecar mutation - wrong config map name",
 			requestBody:               makeTestData(t, "default", map[string]string{"newrelic.com/integrations-sidecar-configmap": "wrong"}),
 			contentType:               "application/json",
 			expectedStatusCode:        http.StatusBadRequest,
