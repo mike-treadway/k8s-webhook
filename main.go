@@ -60,7 +60,7 @@ func main() {
 
 	k8sClient, err := newK8sClient()
 	if err != nil {
-		logger.Errorw("Couldn't connect to k8s api: %s", err)
+		logger.Fatalw("Couldn't connect to k8s api: %s", err)
 	}
 
 	whsvr := &WebhookServer{

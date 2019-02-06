@@ -83,15 +83,8 @@ func applyDefaultsWorkaround(containers []corev1.Container, volumes []corev1.Vol
 func (sm *sidecarMutator) mutationRequired(pod *corev1.Pod) bool {
 	annotations := pod.GetAnnotations()
 
-	// determine whether to perform mutation based on annotation for the target resource
-	var required bool
-	if strings.ToLower(annotations[annotationStatusKey]) == injected {
-		required = false
-	} else {
-		required = annotations[annotationIntegrationConfigKey] != ""
-	}
-
-	return required
+	return strings.ToLower(annotations[annotationStatusKey]) != injected &&
+		annotations[annotationIntegrationConfigKey] != ""
 }
 
 func addContainer(target, added []corev1.Container, basePath string) (patch []patchOperation) {
@@ -227,7 +220,6 @@ func (sm *sidecarMutator) createSidecar(pod *corev1.Pod) ([]corev1.Container, []
 	cfgMap, err := sm.cfgMapRtrv.ConfigMap(pod.Namespace, configMapName)
 	if err != nil {
 		if k8s_errors.IsNotFound(err) {
-			fmt.Printf("\nNOT FOUND\n")
 			return nil, nil, &mutateError{
 				message: fmt.Sprintf("config map: '%s', not found", configMapName),
 				code:    http.StatusBadRequest,
