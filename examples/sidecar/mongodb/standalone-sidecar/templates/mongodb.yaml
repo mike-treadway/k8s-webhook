@@ -1,0 +1,499 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongocfg1
+  labels:
+    run: mongocfg1
+spec:
+  ports:
+  - port: 27019
+    protocol: TCP
+  selector:
+    run: mongocfg1
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: mongocfg1
+spec:
+  replicas: 1
+  template:
+    metadata:
+      annotations:
+        newrelic.com/integrations-sidecar-configmap: "mongodb-cfg-newrelic-integrations-config"
+        newrelic.com/integrations-sidecar-imagename: {{ .Values.image }}
+      labels:
+        name: mongocfg1
+        run: mongocfg1
+    spec:
+      restartPolicy: Always
+      hostname: mongocfg1
+      containers:
+      - image: mongo:3.4.19-jessie
+        name: mongocfg1
+        lifecycle:
+          postStart:
+            exec:
+              command: 
+              - bash 
+              - -c
+              - >- 
+                mongo admin --port "27019" --eval 'db.createRole({role: "listCollections",privileges: [{resource: {db:"",collection:""},actions: ["listCollections"]}],roles: []})';
+                mongo admin --port "27019" --eval 'db.createUser({user: "username",pwd: "password",roles: ["clusterMonitor","listCollections"]})';
+                mongo admin --port "27019" --eval 'rs.initiate({ _id : "cfgrs", configsvr: true, members: [{ _id : 0, host : "mongocfg1:27019" }]})'
+        ports:
+        - name: mongocfg1
+          containerPort: 27019
+        volumeMounts:
+            - name: mongocfg1
+              mountPath: /data/db
+        command: ["mongod"]
+        args: ["--bind_ip", "0.0.0.0", "--noprealloc", "--smallfiles", "--replSet", "cfgrs", "--dbpath","/data/db", "--configsvr", "--noauth"]
+      volumes:
+        - name: mongocfg1
+          #persistentVolumeClaim:
+          #  claimName: mongocfg1
+---
+# Mongo shard replica set 1 node 1
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongosh1-1
+  labels:
+    run: mongosh1-1
+spec:
+  ports:
+  - port: 27017
+    protocol: TCP
+  selector:
+    run: mongosh1-1
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: mongosh1-1
+spec:
+  replicas: 1
+  template:
+    metadata:
+      annotations:
+        newrelic.com/integrations-sidecar-configmap: "mongodb-newrelic-integrations-config"
+        newrelic.com/integrations-sidecar-imagename: {{ .Values.image }}
+      labels:
+        name: mongosh1-1
+        run: mongosh1-1
+    spec:
+      restartPolicy: Always
+      hostname: mongosh1-1
+      containers:
+      - image: mongo:3.4.19-jessie
+        name: mongosh1-1
+        lifecycle:
+          postStart:
+            exec:
+              command: 
+              - bash 
+              - -c
+              - >- 
+                mongo --eval 'rs.initiate({ _id : "rs1", members: [{ _id : 0, host : "mongosh1-1:27017" },{ _id : 1, host : "mongosh1-2:27017" }]})'
+                sleep 5;
+                mongo admin --eval 'db.createRole({role: "listCollections",privileges: [{resource: {db:"",collection:""},actions: ["listCollections"]}],roles: []})';
+                mongo admin --eval 'db.createUser({user: "username",pwd: "password",roles: ["clusterMonitor","listCollections"]})';
+        ports:
+        - name: mongosh1-1
+          containerPort: 27017
+        volumeMounts:
+            - name: mongosh1-1
+              mountPath: /data/db
+        command: ["mongod"]
+        args: ["--bind_ip", "0.0.0.0", "--noprealloc", "--smallfiles", "--replSet", "rs1", "--dbpath", "/data/db", "--noauth", "--port", "27017"]
+      volumes:
+        - name: mongosh1-1
+          #persistentVolumeClaim:
+          #  claimName: mongosh1-1
+---
+# Mongo shard replica set 1 node 2
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongosh1-2
+  labels:
+    run: mongosh1-2
+spec:
+  ports:
+  - port: 27017
+    protocol: TCP
+  selector:
+    run: mongosh1-2
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: mongosh1-2
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: mongosh1-2
+        run: mongosh1-2
+    spec:
+      restartPolicy: Always
+      hostname: mongosh1-2
+      containers:
+      - image: mongo:3.4.19-jessie
+        name: mongosh1-2
+        ports:
+        - name: mongosh1-2
+          containerPort: 27017
+        volumeMounts:
+            - name: mongosh1-2
+              mountPath: /data/db
+        command: ["mongod"]
+        args: ["--bind_ip", "0.0.0.0", "--noprealloc", "--smallfiles", "--replSet", "rs1", "--dbpath", "/data/db", "--noauth", "--port", "27017"]
+      volumes:
+        - name: mongosh1-2
+          #persistentVolumeClaim:
+          #  claimName: mongosh1-2
+---
+# Mongo shard replica set 1 node 1
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongosh2-1
+  labels:
+    run: mongosh2-1
+spec:
+  ports:
+  - port: 27017
+    protocol: TCP
+  selector:
+    run: mongosh2-1
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: mongosh2-1
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: mongosh2-1
+        run: mongosh2-1
+    spec:
+      restartPolicy: Always
+      hostname: mongosh2-1
+      containers:
+      - image: mongo:3.4.19-jessie
+        name: mongosh2-1
+        lifecycle:
+          postStart:
+            exec:
+              command: 
+              - bash 
+              - -c
+              - >- 
+                mongo --eval 'rs.initiate({ _id : "rs2", members: [{ _id : 0, host : "mongosh2-1:27017" },{ _id : 1, host : "mongosh2-2:27017" }]})'
+        ports:
+        - name: mongosh2-1
+          containerPort: 27017
+        volumeMounts:
+            - name: mongosh2-1
+              mountPath: /data/db
+        command: ["mongod"]
+        args: ["--bind_ip", "0.0.0.0", "--noprealloc", "--smallfiles", "--replSet", "rs2", "--dbpath","/data/db", "--noauth", "--port", "27017"]
+      volumes:
+        - name: mongosh2-1
+          #persistentVolumeClaim:
+          #  claimName: mongosh2-1
+---
+# Mongo shard replica set 1 node 2
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongosh2-2
+  labels:
+    run: mongosh2-2
+spec:
+  ports:
+  - port: 27017
+    protocol: TCP
+  selector:
+    run: mongosh2-2
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: mongosh2-2
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: mongosh2-2
+        run: mongosh2-2
+    spec:
+      restartPolicy: Always
+      hostname: mongosh2-2
+      containers:
+      - image: mongo:3.4.19-jessie
+        name: mongosh2-2
+        ports:
+        - name: mongosh2-2
+          containerPort: 27017
+        volumeMounts:
+            - name: mongosh2-2
+              mountPath: /data/db
+        command: ["mongod"]
+        args: ["--bind_ip", "0.0.0.0", "--noprealloc", "--smallfiles", "--replSet", "rs2", "--dbpath", "/data/db", "--noauth", "--port", "27017"]
+      volumes:
+        - name: mongosh2-2
+          #persistentVolumeClaim:
+          #  claimName: mongosh2-2
+---
+# Mongo shard replica set 1 node 1
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongosh3-1
+  labels:
+    run: mongosh3-1
+spec:
+  ports:
+  - port: 27017
+    protocol: TCP
+  selector:
+    run: mongosh3-1
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: mongosh3-1
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: mongosh3-1
+        run: mongosh3-1
+    spec:
+      restartPolicy: Always
+      hostname: mongosh3-1
+      containers:
+      - image: mongo:3.4.19-jessie
+        name: mongosh3-1
+        lifecycle:
+          postStart:
+            exec:
+              command: 
+              - bash 
+              - -c
+              - >- 
+                mongo --eval 'rs.initiate({ _id : "rs3", members: [{ _id : 0, host : "mongosh3-1:27017" },{ _id : 1, host : "mongosh3-2:27017" }]})'
+        ports:
+        - name: mongosh3-1
+          containerPort: 27017
+        volumeMounts:
+            - name: mongosh3-1
+              mountPath: /data/db
+        command: ["mongod"]
+        args: ["--bind_ip", "0.0.0.0", "--noprealloc", "--smallfiles", "--replSet", "rs3", "--dbpath","/data/db", "--noauth", "--port", "27017"]
+      volumes:
+        - name: mongosh3-1
+          #persistentVolumeClaim:
+          #  claimName: mongosh3-1
+---
+# Mongo shard replica set 1 node 2
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongosh3-2
+  labels:
+    run: mongosh3-2
+spec:
+  ports:
+  - port: 27017
+    protocol: TCP
+  selector:
+    run: mongosh3-2
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: mongosh3-2
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: mongosh3-2
+        run: mongosh3-2
+    spec:
+      restartPolicy: Always
+      hostname: mongosh3-2
+      containers:
+      - image: mongo:3.4.19-jessie
+        name: mongosh3-2
+        ports:
+        - name: mongosh3-2
+          containerPort: 27017
+        volumeMounts:
+            - name: mongosh3-2
+              mountPath: /data/db
+        command: ["mongod"]
+        args: ["--bind_ip", "0.0.0.0", "--noprealloc", "--smallfiles", "--replSet", "rs3", "--dbpath", "/data/db", "--noauth", "--port", "27017"]
+      volumes:
+        - name: mongosh3-2
+          #persistentVolumeClaim:
+          #  claimName: mongosh3-2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongos1
+  labels:
+    run: mongos1
+spec:
+  ports:
+  - port: 27017
+    protocol: TCP
+  selector:
+    run: mongos1
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: mongos1
+spec:
+  replicas: 1
+  template:
+    metadata:
+      annotations:
+        newrelic.com/integrations-sidecar-configmap: "mongodb-newrelic-integrations-config"
+        newrelic.com/integrations-sidecar-imagename: {{ .Values.image }}
+      labels:
+        name: mongos1
+        run: mongos1
+    spec:
+      restartPolicy: Always
+      hostname: mongos1
+      containers:
+      - image: mongo:3.4.19-jessie
+        name: mongos1
+        lifecycle:
+          postStart:
+            exec:
+              command: 
+              - bash
+              - -c
+              - >- 
+                until mongo mongosh1-1:27017 --eval 'db.runCommand( { serverStatus: 1 } )'; do sleep 5; done;
+                until mongo mongosh1-2:27017 --eval 'db.runCommand( { serverStatus: 1 } )'; do sleep 5; done;
+                until mongo mongosh2-1:27017 --eval 'db.runCommand( { serverStatus: 1 } )'; do sleep 5; done;
+                until mongo mongosh2-2:27017 --eval 'db.runCommand( { serverStatus: 1 } )'; do sleep 5; done;
+                until mongo mongosh3-1:27017 --eval 'db.runCommand( { serverStatus: 1 } )'; do sleep 5; done;
+                until mongo mongosh3-2:27017 --eval 'db.runCommand( { serverStatus: 1 } )'; do sleep 5; done;
+                until mongo mongocfg1:27019 --eval 'db.runCommand( { serverStatus: 1 } )'; do sleep 5; done;
+                sleep 10;
+                mongo admin --eval 'db.createRole({role: "listCollections",privileges: [{resource: {db:"",collection:""},actions: ["listCollections"]}],roles: []})';
+                mongo admin --eval 'db.createUser({user: "username",pwd: "password",roles: ["clusterMonitor","listCollections"]})';
+                mongo --eval 'sh.addShard("rs1/mongosh1-1:27017"); sh.addShard("rs2/mongosh2-1:27017"); sh.addShard("rs3/mongosh3-1:27017");'
+        ports:
+        - name: mongos1
+          containerPort: 27017
+        volumeMounts:
+            - name: mongos1
+              mountPath: /data/db
+        command: 
+          - bash
+          - -c
+          - >- 
+            until mongo mongocfg1:27019 --eval 'db.runCommand( { serverStatus: 1 } )'; do sleep 5; done;
+            mongos --bind_ip 0.0.0.0 --configdb cfgrs/mongocfg1:27019
+      volumes:
+        - name: mongos1
+#          persistentVolumeClaim:
+#            claimName: mongos1
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mongodb-newrelic-integrations-config
+  namespace: default
+data:
+  config.yaml: |
+    integration_name: com.newrelic.mongodb
+    instances:
+      - name: all
+        command: all
+        arguments:
+          username: username
+          password: password
+          auth_source: admin
+          host: localhost
+          port: 27017
+        labels:
+          env: production
+  definition.yaml: |
+    name: com.newrelic.mongodb
+    description: Reports status and metrics for mongodb service
+    protocol_version: 1
+    os: linux
+    commands:
+      all:
+        command:
+          - ./bin/nr-mongodb
+        interval: 15
+      metrics:
+        command:
+          - ./bin/nr-mongodb
+          - --metrics
+        interval: 15
+      inventory:
+        command:
+          - ./bin/nr-mongodb
+          - --inventory
+        prefix: config/mongodb
+        interval: 15
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mongodb-cfg-newrelic-integrations-config
+  namespace: default
+data:
+  config.yaml: |
+    integration_name: com.newrelic.mongodb
+    instances:
+      - name: all
+        command: all
+        arguments:
+          username: username
+          password: password
+          auth_source: admin
+          host: localhost
+          port: 27019
+        labels:
+          env: production
+  definition.yaml: |
+    name: com.newrelic.mongodb
+    description: Reports status and metrics for mongodb service
+    protocol_version: 1
+    os: linux
+    commands:
+      all:
+        command:
+          - ./bin/nr-mongodb
+        interval: 15
+      metrics:
+        command:
+          - ./bin/nr-mongodb
+          - --metrics
+        interval: 15
+      inventory:
+        command:
+          - ./bin/nr-mongodb
+          - --inventory
+        prefix: config/mongodb
+        interval: 15

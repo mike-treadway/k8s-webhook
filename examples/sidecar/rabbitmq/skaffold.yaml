@@ -1,0 +1,13 @@
+apiVersion: skaffold/v1beta1
+kind: Config
+build:
+  artifacts:
+    - image: sidecar-image
+      context: ./sidecar-image
+deploy:
+  helm:
+    releases:
+      - name: standalone-sidecar-rabbitmq
+        chartPath: standalone-sidecar
+        values:
+          image: sidecar-image

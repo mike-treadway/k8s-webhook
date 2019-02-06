@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-deployment
+  labels:
+    app: mysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      annotations:
+        newrelic.com/integrations-sidecar-configmap: "mysql-newrelic-integrations-config"
+        newrelic.com/integrations-sidecar-imagename: {{ .Values.image }}
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:5
+        env:
+          - name: MYSQL_ROOT_PASSWORD
+            value: root
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-newrelic-integrations-config
+  namespace: default
+data:
+  config.yaml: |
+    integration_name: com.newrelic.mysql
+    instances:
+      - name: mysql-server
+        command: status
+        arguments:
+          hostname: localhost
+          port: 3306
+          username: root
+          password: $MYSQL_ROOT_PASSWORD
+        labels:
+          env: testenv
+          role: write-replica
+  definition.yaml: |
+    name: com.newrelic.mysql
+    description: Reports status and metrics for mysql server
+    protocol_version: 1
+    os: linux
+    commands:
+        status:
+            command:
+                - /var/db/newrelic-infra/newrelic-integrations/bin/nr-mysql
+            prefix: config/mysql
+            interval: 30
