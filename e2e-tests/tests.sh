@@ -169,6 +169,13 @@ if [ "$pod_name" = "" ]; then
 fi
 wait_for_pod "$pod_name"
 
+if kubectl get pod "${pod_name}" | grep "2/2"; then
+    printf "Sidecar created\n"
+else
+    printf "Sidecar not created\n"
+    exit 1
+fi
+
 kubectl get pods
 kubectl describe pod "${pod_name}"
 printf "getting env vars for %s\n" "${pod_name}"
