@@ -28,13 +28,26 @@ func (m *metadataEnvGenerator) getVars(pod *corev1.Pod, container *corev1.Contai
 		createEnvVarFromString("NEW_RELIC_METADATA_KUBERNETES_CONTAINER_NAME", container.Name),
 	}
 
-	// Guess the name of the deployment. We check whether the Pod is Owned by a ReplicaSet and confirms with the
-	// naming convention for a Deployment. This can give a false positive if the user uses ReplicaSets directly.
-	if len(pod.OwnerReferences) == 1 && pod.OwnerReferences[0].Kind == "ReplicaSet" {
-		podParts := strings.Split(pod.GenerateName, "-")
-		if len(podParts) >= 3 {
-			deployment := strings.Join(podParts[:len(podParts)-2], "-")
-			vars = append(vars, createEnvVarFromString("NEW_RELIC_METADATA_KUBERNETES_DEPLOYMENT_NAME", deployment))
+	if len(pod.OwnerReferences) == 1 {
+		var ownerName, envName string
+		switch pod.OwnerReferences[0].Kind {
+		case "ReplicaSet":
+			// Guess the name of the deployment. We check whether the Pod is Owned by a ReplicaSet and confirms with the
+			// naming convention for a Deployment. This can give a false positive if the user uses ReplicaSets directly.
+			podParts := strings.Split(pod.GenerateName, "-")
+			if len(podParts) >= 3 {
+				ownerName = strings.Join(podParts[:len(podParts)-2], "-")
+				envName = "NEW_RELIC_METADATA_KUBERNETES_DEPLOYMENT_NAME"
+			}
+		case "StatefulSet":
+			ownerName = pod.OwnerReferences[0].Name
+			envName = "NEW_RELIC_METADATA_KUBERNETES_STATEFULSET_NAME"
+		case "DaemonSet":
+			ownerName = pod.OwnerReferences[0].Name
+			envName = "NEW_RELIC_METADATA_KUBERNETES_DAEMONSET_NAME"
+		}
+		if len(envName) > 0 {
+			vars = append(vars, createEnvVarFromString(envName, ownerName))
 		}
 	}
 
