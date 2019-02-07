@@ -198,6 +198,7 @@ func (sm *sidecarMutator) addEnvVars(pod *corev1.Pod, sidecar *corev1.Container)
 	sidecar.Env = append(sidecar.Env, []corev1.EnvVar{
 		createEnvVarFromString("NRIA_IS_FORWARD_ONLY", "true"),
 		createEnvVarFromString("NRIA_OVERRIDE_HOST_ROOT", ""),
+		createEnvVarFromString("K8S_INTEGRATION", "true"),
 	}...)
 
 	for k, v := range sm.nriaEnvVars {

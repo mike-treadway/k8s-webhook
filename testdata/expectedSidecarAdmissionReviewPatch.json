@@ -192,6 +192,10 @@
                 },
                 {
                     "name": "NRIA_OVERRIDE_HOST_ROOT"
+                },
+                {
+                    "name": "K8S_INTEGRATION",
+                    "value": "true"
                 }
             ],
             "resources": {},
