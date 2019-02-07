@@ -54,7 +54,7 @@ func newSidecarMutator(clusterName string, cfgMapRtrv configMapRetriever) *sidec
 		envGenerator: &metadataEnvGenerator{
 			clusterName: clusterName,
 		},
-		cfgMapRtrv: cfgMapRtrv,
+		cfgMapRtrv:  cfgMapRtrv,
 		nriaEnvVars: map[string]string{},
 	}
 	// pass all env vars starting with NRIA in the injector to the sidecar (line the license)
