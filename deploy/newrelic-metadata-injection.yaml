@@ -18,6 +18,8 @@ spec:
         env:
         - name: clusterName
           value: "<YOUR_CLUSTER_NAME>"
+        - name: NRIA_LICENSE_KEY
+          value: "<NRIA_LICENSE_KEY>"
         volumeMounts:
         - name: tls-key-cert-pair
           mountPath: /etc/tls-key-cert-pair

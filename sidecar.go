@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -35,6 +36,7 @@ type sidecarMutator struct {
 	containerDefinition *corev1.Container
 	envGenerator        *metadataEnvGenerator
 	cfgMapRtrv          configMapRetriever
+	nriaEnvVars         map[string]string
 }
 
 type configMapRetriever interface {
@@ -42,7 +44,7 @@ type configMapRetriever interface {
 }
 
 func newSidecarMutator(clusterName string, cfgMapRtrv configMapRetriever) *sidecarMutator {
-	return &sidecarMutator{
+	sm := &sidecarMutator{
 		clusterName: clusterName,
 		containerDefinition: &corev1.Container{
 			Name:            "newrelic-sidecar",
@@ -53,7 +55,18 @@ func newSidecarMutator(clusterName string, cfgMapRtrv configMapRetriever) *sidec
 			clusterName: clusterName,
 		},
 		cfgMapRtrv: cfgMapRtrv,
+		nriaEnvVars: map[string]string{},
 	}
+	// pass all env vars starting with NRIA in the injector to the sidecar (line the license)
+	for _, e := range os.Environ() {
+		if strings.HasPrefix(e, "NRIA") {
+			splits := strings.SplitN(e, "=", 2)
+			if len(splits) == 2 && splits[1] != "" {
+				sm.nriaEnvVars[splits[0]] = splits[1]
+			}
+		}
+	}
+	return sm
 }
 
 type mutateError struct {
@@ -186,6 +199,13 @@ func (sm *sidecarMutator) addEnvVars(pod *corev1.Pod, sidecar *corev1.Container)
 		createEnvVarFromString("NRIA_IS_FORWARD_ONLY", "true"),
 		createEnvVarFromString("NRIA_OVERRIDE_HOST_ROOT", ""),
 	}...)
+
+	for k, v := range sm.nriaEnvVars {
+		sidecar.Env = append(sidecar.Env, corev1.EnvVar{
+			Name:  k,
+			Value: v,
+		})
+	}
 
 	labels := ""
 	i := 0
