@@ -17,9 +17,8 @@ New Relic requires the following environment variables to identify Kubernetes ob
 These environment variables can be set manually by the customer, or they can be automatically injected using a MutatingAdmissionWebhook.
 New Relic provides an easy method for deploying this automatic approach.
 
-A sidecar will be injected into all pods having the `newrelic.com/integrations-sidecar-configmap` annotation set to the name
-of a config map object containing the integration config. The `newrelic.com/integrations-sidecar-imagename` annotation is used
-to specify the sidecar image to be injected.
+A sidecar will be injected into all pods having the `newrelic.com/integrations-sidecar-configmap` annotation set to the name of a config map object containing the integration config. 
+The `newrelic.com/integrations-sidecar-imagename` annotation is used to specify the sidecar image to be injected.
 
 ## Setup
 
