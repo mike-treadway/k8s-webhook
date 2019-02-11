@@ -153,32 +153,30 @@ func (whsvr *WebhookServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// determine whether to perform mutation
 	if !mutationRequired(ignoredNamespaces, &pod.ObjectMeta) {
 		whsvr.logger.Infow("skipped mutation", "namespace", pod.Namespace, "pod", pod.Name, "reason", "policy check (special namespaces)")
-		return
-	}
-
-	var patches []patchOperation
-	for _, m := range whsvr.mutators {
-		p, err := m.mutate(&pod)
-		if err != nil {
-			whsvr.logger.Errorw("error during mutation", "err", err)
-			http.Error(w, fmt.Sprintf("error during mutation: %q", err.Error()), errorCode(err))
-			return
+	} else {
+		var patches []patchOperation
+		for _, m := range whsvr.mutators {
+			p, err := m.mutate(&pod)
+			if err != nil {
+				whsvr.logger.Errorw("error during mutation", "err", err)
+				http.Error(w, fmt.Sprintf("error during mutation: %q", err.Error()), errorCode(err))
+				return
+			}
+			patches = append(patches, p...)
 		}
-		patches = append(patches, p...)
-	}
 
-	if len(patches) > 0 {
-		patchBytes, err := json.Marshal(patches)
-		if err != nil {
-			whsvr.logger.Errorw("error marshaling patch", "err", err)
+		if len(patches) > 0 {
+			patchBytes, err := json.Marshal(patches)
+			if err != nil {
+				whsvr.logger.Errorw("error marshaling patch", "err", err)
+			}
+			admissionReviewResponse.Response.Patch = patchBytes
+			admissionReviewResponse.Response.PatchType = func() *v1beta1.PatchType {
+				pt := v1beta1.PatchTypeJSONPatch // Only PatchTypeJSONPatch is allowed by now.
+				return &pt
+			}()
 		}
-		admissionReviewResponse.Response.Patch = patchBytes
-		admissionReviewResponse.Response.PatchType = func() *v1beta1.PatchType {
-			pt := v1beta1.PatchTypeJSONPatch // Only PatchTypeJSONPatch is allowed by now.
-			return &pt
-		}()
 	}
-
 	if admissionReviewRequest.Request != nil {
 		admissionReviewResponse.Response.UID = admissionReviewRequest.Request.UID
 	}
