@@ -69,12 +69,17 @@ wait_for_pod "$pod_name"
 printf "webhook logs:\n"
 kubectl logs "$webhook_pod_name"
 
-if kubectl get pod "${pod_name}" | grep "2/2"; then
-    printf "Sidecar created\n"
-else
-    printf "Sidecar not created\n"
-    exit 1
-fi
+sidecar_status=$(kubectl get pods "$pod_name" -o go-template --template='{{range .status.containerStatuses}}{{if eq .name  "newrelic-sidecar"}}{{.name}}{{" : "}}{{.state}}{{"\n"}}{{end}}{{end}}')
+case "$sidecar_status" in
+    *running*) 
+        printf "Pod %s contains sidecar %s\n" "$pod_name" "$sidecar_status"
+        ;;
+    *)         
+        printf "Pod %s does not contain sidecar %s\n" "$pod_name" "$sidecar_status" 
+        kubectl describe pod "$pod_name"
+        exit 1
+        ;;
+esac
 
 kubectl get pods
 kubectl describe pod "${pod_name}"

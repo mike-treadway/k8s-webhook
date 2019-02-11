@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"bytes"
@@ -142,12 +142,12 @@ func TestServeHTTP(t *testing.T) {
 	}
 
 	clusterName := "foobar"
-	whsvr := &WebhookServer{
-		clusterName: clusterName,
-		server:      &http.Server{},
-		mutators: []podMutator{
-			newEnvVarMutator(clusterName),
-			newSidecarMutator(clusterName, makeConfigMapRetriever("default", configName, map[string]string{"config.yaml": integrationConfig})),
+	whsvr := &Webhook{
+		ClusterName: clusterName,
+		Server:      &http.Server{},
+		Mutators: []podMutator{
+			NewEnvVarMutator(clusterName),
+			NewSidecarMutator(clusterName, makeConfigMapRetriever("default", configName, map[string]string{"config.yaml": integrationConfig})),
 		},
 	}
 
@@ -182,13 +182,13 @@ func Benchmark_EnvVarWebhookPerformance(b *testing.B) {
 	body := makeTestData(b, "default", map[string]string{})
 
 	clusterName := "foobar"
-	whsvr := &WebhookServer{
-		clusterName: clusterName,
-		server: &http.Server{
+	whsvr := &Webhook{
+		ClusterName: clusterName,
+		Server: &http.Server{
 			Addr: ":8080",
 		},
-		mutators: []podMutator{
-			newEnvVarMutator(clusterName),
+		Mutators: []podMutator{
+			NewEnvVarMutator(clusterName),
 		},
 	}
 
@@ -206,13 +206,13 @@ func Benchmark_SidecarWebhookPerformance(b *testing.B) {
 	configName := "my-config"
 	body := makeTestData(b, namespace, map[string]string{"newrelic.com/integrations-sidecar-configmap": configName})
 	clusterName := "mycluster"
-	whsvr := &WebhookServer{
-		clusterName: clusterName,
-		server: &http.Server{
+	whsvr := &Webhook{
+		ClusterName: clusterName,
+		Server: &http.Server{
 			Addr: ":8080",
 		},
-		mutators: []podMutator{
-			newSidecarMutator(clusterName, makeConfigMapRetriever(namespace, configName, map[string]string{"config.yaml": integrationConfig})),
+		Mutators: []podMutator{
+			NewSidecarMutator(clusterName, makeConfigMapRetriever(namespace, configName, map[string]string{"config.yaml": integrationConfig})),
 		},
 	}
 

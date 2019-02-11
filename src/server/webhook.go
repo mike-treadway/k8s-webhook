@@ -1,6 +1,6 @@
 // Based on https://github.com/morvencao/kube-mutating-webhook-tutorial/
 
-package main
+package server
 
 import (
 	"crypto/tls"
@@ -33,33 +33,35 @@ var ignoredNamespaces = []string{
 	metav1.NamespacePublic,
 }
 
-type patchOperation struct {
+// PatchOperation defines a patch to a k8s api resource
+type PatchOperation struct {
 	Op    string      `json:"op"`
 	Path  string      `json:"path"`
 	Value interface{} `json:"value,omitempty"`
 }
 
 type podMutator interface {
-	mutate(pod *corev1.Pod) ([]patchOperation, error)
+	Mutate(pod *corev1.Pod) ([]PatchOperation, error)
 }
 
-// WebhookServer is a webhook server that can accept requests from the Apiserver
-type WebhookServer struct {
-	certFile    string
-	keyFile     string
-	cert        *tls.Certificate
-	clusterName string
-	logger      *zap.SugaredLogger
-	mu          sync.RWMutex
-	server      *http.Server
-	certWatcher *fsnotify.Watcher
-	mutators    []podMutator
+// Webhook is a webhook server that can accept requests from the Apiserver
+type Webhook struct {
+	CertFile    string
+	KeyFile     string
+	Cert        *tls.Certificate
+	ClusterName string
+	Logger      *zap.SugaredLogger
+	Mu          sync.RWMutex
+	Server      *http.Server
+	CertWatcher *fsnotify.Watcher
+	Mutators    []podMutator
 }
 
-func (whsvr *WebhookServer) getCert(*tls.ClientHelloInfo) (*tls.Certificate, error) {
-	whsvr.mu.Lock()
-	defer whsvr.mu.Unlock()
-	return whsvr.cert, nil
+// GetCert returns the certificate that should be used by the server in the TLS handshake.
+func (whsvr *Webhook) GetCert(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+	whsvr.Mu.Lock()
+	defer whsvr.Mu.Unlock()
+	return whsvr.Cert, nil
 }
 
 func init() {
@@ -91,11 +93,11 @@ func errorCode(err error) int {
 }
 
 // Serve method for webhook server
-func (whsvr *WebhookServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (whsvr *Webhook) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var body []byte
 
-	if whsvr.logger == nil {
-		whsvr.logger = zap.NewNop().Sugar()
+	if whsvr.Logger == nil {
+		whsvr.Logger = zap.NewNop().Sugar()
 	}
 
 	if r.Body != nil {
@@ -104,7 +106,7 @@ func (whsvr *WebhookServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if len(body) == 0 {
-		whsvr.logger.Error("empty body")
+		whsvr.Logger.Error("empty body")
 		http.Error(w, "empty body", http.StatusBadRequest)
 		return
 	}
@@ -112,7 +114,7 @@ func (whsvr *WebhookServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// verify the content type is accurate
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "application/json" {
-		whsvr.logger.Errorw("invalid content type", "expected", "application/json", "context type", contentType)
+		whsvr.Logger.Errorw("invalid content type", "expected", "application/json", "context type", contentType)
 		http.Error(w, "invalid Content-Type, expect `application/json`", http.StatusUnsupportedMediaType)
 		return
 	}
@@ -125,13 +127,13 @@ func (whsvr *WebhookServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	admissionReviewRequest := v1beta1.AdmissionReview{}
 	if _, _, err := deserializer.Decode(body, nil, &admissionReviewRequest); err != nil {
-		whsvr.logger.Errorw("can't decode body", "err", err, "body", body)
+		whsvr.Logger.Errorw("can't decode body", "err", err, "body", body)
 		http.Error(w, fmt.Sprintf("could not decode request body: %q", err.Error()), http.StatusBadRequest)
 		return
 	}
 
 	if len(admissionReviewRequest.Request.Object.Raw) == 0 {
-		whsvr.logger.Errorw("object not present in request body", "body", body)
+		whsvr.Logger.Errorw("object not present in request body", "body", body)
 		http.Error(w, fmt.Sprintf("object not present in request body: %q", body), http.StatusBadRequest)
 		return
 	}
@@ -139,7 +141,8 @@ func (whsvr *WebhookServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	req := admissionReviewRequest.Request
 	var pod corev1.Pod
 	if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
-		whsvr.logger.Errorw("could not unmarshal raw object", "err", err, "object", string(req.Object.Raw))
+		whsvr.Logger.Errorw("could not unmarshal raw object", "err", err, "object", string(req.Object.Raw))
+		http.Error(w, fmt.Sprintf("failed to unmarshal pod: %q %q", body, err.Error()), http.StatusBadRequest)
 		return
 	}
 	// workaround for empty namespace on the pod level
@@ -147,18 +150,18 @@ func (whsvr *WebhookServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		pod.Namespace = req.Namespace
 	}
 
-	whsvr.logger.Infow("received admission review", "kind", req.Kind, "namespace", req.Namespace, "name",
+	whsvr.Logger.Infow("received admission review", "kind", req.Kind, "namespace", req.Namespace, "name",
 		req.Name, "pod", pod.Name, "UID", req.UID, "operation", req.Operation, "userinfo", req.UserInfo)
 
 	// determine whether to perform mutation
 	if !mutationRequired(ignoredNamespaces, &pod.ObjectMeta) {
-		whsvr.logger.Infow("skipped mutation", "namespace", pod.Namespace, "pod", pod.Name, "reason", "policy check (special namespaces)")
+		whsvr.Logger.Infow("skipped mutation", "namespace", pod.Namespace, "pod", pod.Name, "reason", "policy check (special namespaces)")
 	} else {
-		var patches []patchOperation
-		for _, m := range whsvr.mutators {
-			p, err := m.mutate(&pod)
+		var patches []PatchOperation
+		for _, m := range whsvr.Mutators {
+			p, err := m.Mutate(&pod)
 			if err != nil {
-				whsvr.logger.Errorw("error during mutation", "err", err)
+				whsvr.Logger.Errorw("error during mutation", "err", err)
 				http.Error(w, fmt.Sprintf("error during mutation: %q", err.Error()), errorCode(err))
 				return
 			}
@@ -168,7 +171,9 @@ func (whsvr *WebhookServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if len(patches) > 0 {
 			patchBytes, err := json.Marshal(patches)
 			if err != nil {
-				whsvr.logger.Errorw("error marshaling patch", "err", err)
+				whsvr.Logger.Errorw("error marshaling patch", "err", err)
+				http.Error(w, fmt.Sprintf("error marshaling patch: %q", err.Error()), http.StatusInternalServerError)
+				return
 			}
 			admissionReviewResponse.Response.Patch = patchBytes
 			admissionReviewResponse.Response.PatchType = func() *v1beta1.PatchType {
@@ -183,13 +188,13 @@ func (whsvr *WebhookServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := json.Marshal(admissionReviewResponse)
 	if err != nil {
-		whsvr.logger.Errorw("can't decode response", "err", err)
+		whsvr.Logger.Errorw("can't decode response", "err", err)
 		http.Error(w, fmt.Sprintf("could not encode response: %v", err), http.StatusInternalServerError)
 		return
 	}
-	whsvr.logger.Info("writing response")
+	whsvr.Logger.Info("writing response")
 	if _, err := w.Write(resp); err != nil {
-		whsvr.logger.Errorw("can't write response", "err", err)
+		whsvr.Logger.Errorw("can't write response", "err", err)
 		http.Error(w, fmt.Sprintf("could not write response: %v", err), http.StatusInternalServerError)
 		return
 	}

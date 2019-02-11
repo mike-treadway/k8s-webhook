@@ -1,4 +1,4 @@
-package main
+package k8s
 
 import (
 	corev1 "k8s.io/api/core/v1"
@@ -7,11 +7,13 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-type k8sClient struct {
+// Client wraps a connection to K8s api
+type Client struct {
 	clientset *kubernetes.Clientset
 }
 
-func newK8sClient() (*k8sClient, error) {
+// New create new kubernetes client
+func New() (*Client, error) {
 	// Create the in-cluster config
 	config, err := rest.InClusterConfig()
 	if err != nil {
@@ -23,11 +25,12 @@ func newK8sClient() (*k8sClient, error) {
 		return nil, err
 	}
 
-	return &k8sClient{
+	return &Client{
 		clientset: clientset,
 	}, nil
 }
 
-func (kc *k8sClient) ConfigMap(namespace, name string) (*corev1.ConfigMap, error) {
+// ConfigMap - retrieve a config map from the K8s api
+func (kc *Client) ConfigMap(namespace, name string) (*corev1.ConfigMap, error) {
 	return kc.clientset.CoreV1().ConfigMaps(namespace).Get(name, metav1.GetOptions{})
 }
