@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"fmt"
@@ -26,6 +26,7 @@ func (m *metadataEnvGenerator) getVars(pod *corev1.Pod, container *corev1.Contai
 		createEnvVarFromFieldPath("NEW_RELIC_METADATA_KUBERNETES_NAMESPACE_NAME", "metadata.namespace"),
 		createEnvVarFromFieldPath("NEW_RELIC_METADATA_KUBERNETES_POD_NAME", "metadata.name"),
 		createEnvVarFromString("NEW_RELIC_METADATA_KUBERNETES_CONTAINER_NAME", container.Name),
+		createEnvVarFromString("NEW_RELIC_METADATA_KUBERNETES_CONTAINER_IMAGE_NAME", container.Image),
 	}
 
 	if len(pod.OwnerReferences) == 1 {
@@ -54,19 +55,21 @@ func (m *metadataEnvGenerator) getVars(pod *corev1.Pod, container *corev1.Contai
 	return vars
 }
 
-type envVarMutator struct {
+// EnvVarMutator - injects NewRelic metadata env vars into pods
+type EnvVarMutator struct {
 	envGenerator *metadataEnvGenerator
 }
 
-func newEnvVarMutator(clusterName string) *envVarMutator {
-	return &envVarMutator{
+// NewEnvVarMutator - return new env var pod mutator
+func NewEnvVarMutator(clusterName string) *EnvVarMutator {
+	return &EnvVarMutator{
 		envGenerator: &metadataEnvGenerator{
 			clusterName: clusterName,
 		},
 	}
 }
 
-func (evm *envVarMutator) updateContainer(pod *corev1.Pod, index int, container *corev1.Container) (patch []patchOperation) {
+func (evm *EnvVarMutator) updateContainer(pod *corev1.Pod, index int, container *corev1.Container) (patch []PatchOperation) {
 	// Create map with all environment variable names
 	envVarMap := map[string]bool{}
 	for _, envVar := range container.Env {
@@ -92,7 +95,7 @@ func (evm *envVarMutator) updateContainer(pod *corev1.Pod, index int, container 
 				path = path + "/-"
 			}
 
-			patch = append(patch, patchOperation{
+			patch = append(patch, PatchOperation{
 				Op:    "add",
 				Path:  path,
 				Value: value,
@@ -102,8 +105,9 @@ func (evm *envVarMutator) updateContainer(pod *corev1.Pod, index int, container 
 	return patch
 }
 
-func (evm *envVarMutator) mutate(pod *corev1.Pod) ([]patchOperation, error) {
-	var patch []patchOperation
+// Mutate - update the env vars for each container in pod
+func (evm *EnvVarMutator) Mutate(pod *corev1.Pod) ([]PatchOperation, error) {
+	var patch []PatchOperation
 
 	for i, container := range pod.Spec.Containers {
 		patch = append(patch, evm.updateContainer(pod, i, &container)...)

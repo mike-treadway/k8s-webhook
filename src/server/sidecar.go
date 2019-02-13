@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"fmt"
@@ -31,7 +31,8 @@ var (
 	defaulter = runtime.ObjectDefaulter(runtimeScheme)
 )
 
-type sidecarMutator struct {
+// SidecarMutator - injects sidecars into pods
+type SidecarMutator struct {
 	clusterName         string
 	containerDefinition *corev1.Container
 	envGenerator        *metadataEnvGenerator
@@ -43,8 +44,9 @@ type configMapRetriever interface {
 	ConfigMap(namespace, name string) (*corev1.ConfigMap, error)
 }
 
-func newSidecarMutator(clusterName string, cfgMapRtrv configMapRetriever) *sidecarMutator {
-	sm := &sidecarMutator{
+// NewSidecarMutator - create new sidecar mutator instance
+func NewSidecarMutator(clusterName string, cfgMapRtrv configMapRetriever) *SidecarMutator {
+	sm := &SidecarMutator{
 		clusterName: clusterName,
 		containerDefinition: &corev1.Container{
 			Name:            "newrelic-sidecar",
@@ -93,14 +95,14 @@ func applyDefaultsWorkaround(containers []corev1.Container, volumes []corev1.Vol
 }
 
 // Check whether the target resoured need to be mutated
-func (sm *sidecarMutator) mutationRequired(pod *corev1.Pod) bool {
+func (sm *SidecarMutator) mutationRequired(pod *corev1.Pod) bool {
 	annotations := pod.GetAnnotations()
 
 	return strings.ToLower(annotations[annotationStatusKey]) != injected &&
 		annotations[annotationIntegrationConfigKey] != ""
 }
 
-func addContainer(target, added []corev1.Container, basePath string) (patch []patchOperation) {
+func addContainer(target, added []corev1.Container, basePath string) (patch []PatchOperation) {
 	first := len(target) == 0
 	var value interface{}
 	for _, add := range added {
@@ -112,7 +114,7 @@ func addContainer(target, added []corev1.Container, basePath string) (patch []pa
 		} else {
 			path = path + "/-"
 		}
-		patch = append(patch, patchOperation{
+		patch = append(patch, PatchOperation{
 			Op:    "add",
 			Path:  path,
 			Value: value,
@@ -121,7 +123,7 @@ func addContainer(target, added []corev1.Container, basePath string) (patch []pa
 	return patch
 }
 
-func addVolume(target, added []corev1.Volume, basePath string) (patch []patchOperation) {
+func addVolume(target, added []corev1.Volume, basePath string) (patch []PatchOperation) {
 	first := len(target) == 0
 	var value interface{}
 	for _, add := range added {
@@ -133,7 +135,7 @@ func addVolume(target, added []corev1.Volume, basePath string) (patch []patchOpe
 		} else {
 			path = path + "/-"
 		}
-		patch = append(patch, patchOperation{
+		patch = append(patch, PatchOperation{
 			Op:    "add",
 			Path:  path,
 			Value: value,
@@ -142,11 +144,11 @@ func addVolume(target, added []corev1.Volume, basePath string) (patch []patchOpe
 	return patch
 }
 
-func updateAnnotation(target map[string]string, added map[string]string) (patch []patchOperation) {
+func updateAnnotation(target map[string]string, added map[string]string) (patch []PatchOperation) {
 	for key, value := range added {
 		if target == nil || target[key] == "" {
 			target = map[string]string{}
-			patch = append(patch, patchOperation{
+			patch = append(patch, PatchOperation{
 				Op:   "add",
 				Path: "/metadata/annotations",
 				Value: map[string]string{
@@ -154,7 +156,7 @@ func updateAnnotation(target map[string]string, added map[string]string) (patch 
 				},
 			})
 		} else {
-			patch = append(patch, patchOperation{
+			patch = append(patch, PatchOperation{
 				Op:    "replace",
 				Path:  "/metadata/annotations/" + key,
 				Value: value,
@@ -164,7 +166,8 @@ func updateAnnotation(target map[string]string, added map[string]string) (patch 
 	return patch
 }
 
-func (sm *sidecarMutator) mutate(pod *corev1.Pod) ([]patchOperation, error) {
+// Mutate - inject the sidecar into the pod
+func (sm *SidecarMutator) Mutate(pod *corev1.Pod) ([]PatchOperation, error) {
 	// determine whether to perform mutation
 	if !sm.mutationRequired(pod) {
 		return nil, nil
@@ -182,8 +185,8 @@ func (sm *sidecarMutator) mutate(pod *corev1.Pod) ([]patchOperation, error) {
 }
 
 // create mutation patch for resoures
-func (sm *sidecarMutator) createPatch(pod *corev1.Pod, containers []corev1.Container, volumes []corev1.Volume, annotations map[string]string) ([]patchOperation, error) {
-	var patch []patchOperation
+func (sm *SidecarMutator) createPatch(pod *corev1.Pod, containers []corev1.Container, volumes []corev1.Volume, annotations map[string]string) ([]PatchOperation, error) {
+	var patch []PatchOperation
 
 	patch = append(patch, addContainer(pod.Spec.Containers, containers, "/spec/containers")...)
 	patch = append(patch, addVolume(pod.Spec.Volumes, volumes, "/spec/volumes")...)
@@ -192,7 +195,7 @@ func (sm *sidecarMutator) createPatch(pod *corev1.Pod, containers []corev1.Conta
 	return patch, nil
 }
 
-func (sm *sidecarMutator) addEnvVars(pod *corev1.Pod, sidecar *corev1.Container) {
+func (sm *SidecarMutator) addEnvVars(pod *corev1.Pod, sidecar *corev1.Container) {
 	sidecar.Env = sm.envGenerator.getVars(pod, &pod.Spec.Containers[0])
 
 	sidecar.Env = append(sidecar.Env, []corev1.EnvVar{
@@ -229,7 +232,7 @@ type integrationCfg struct {
 	} `yaml:"instances"`
 }
 
-func (sm *sidecarMutator) createSidecar(pod *corev1.Pod) ([]corev1.Container, []corev1.Volume, error) {
+func (sm *SidecarMutator) createSidecar(pod *corev1.Pod) ([]corev1.Container, []corev1.Volume, error) {
 	containerDef := *sm.containerDefinition
 	annotations := pod.GetAnnotations()
 
