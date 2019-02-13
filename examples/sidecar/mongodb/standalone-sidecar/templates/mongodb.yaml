@@ -38,9 +38,9 @@ spec:
               - bash 
               - -c
               - >- 
-                mongo admin --port "27019" --eval 'db.createRole({role: "listCollections",privileges: [{resource: {db:"",collection:""},actions: ["listCollections"]}],roles: []})';
-                mongo admin --port "27019" --eval 'db.createUser({user: "username",pwd: "password",roles: ["clusterMonitor","listCollections"]})';
-                mongo admin --port "27019" --eval 'rs.initiate({ _id : "cfgrs", configsvr: true, members: [{ _id : 0, host : "mongocfg1:27019" }]})'
+                mongo --port "27019" --eval 'db.createRole({role: "listCollections",privileges: [{resource: {db:"",collection:""},actions: ["listCollections"]}],roles: []})';
+                mongo --port "27019" --eval 'db.createUser({user: "username",pwd: "password",roles: ["clusterMonitor","listCollections"]})';
+                mongo --port "27019" --eval 'rs.initiate({ _id : "cfgrs", configsvr: true, members: [{ _id : 0, host : "mongocfg1:27019" }]})'
         ports:
         - name: mongocfg1
           containerPort: 27019
@@ -95,8 +95,9 @@ spec:
               - bash 
               - -c
               - >- 
-                mongo --eval 'rs.initiate({ _id : "rs1", members: [{ _id : 0, host : "mongosh1-1:27017" },{ _id : 1, host : "mongosh1-2:27017" }]})'
                 sleep 5;
+                mongo --eval 'rs.initiate({ _id : "rs1", members: [{ _id : 0, host : "mongosh1-1:27017" }]})'
+                sleep 10;
                 mongo admin --eval 'db.createRole({role: "listCollections",privileges: [{resource: {db:"",collection:""},actions: ["listCollections"]}],roles: []})';
                 mongo admin --eval 'db.createUser({user: "username",pwd: "password",roles: ["clusterMonitor","listCollections"]})';
         ports:
@@ -111,50 +112,6 @@ spec:
         - name: mongosh1-1
           #persistentVolumeClaim:
           #  claimName: mongosh1-1
----
-# Mongo shard replica set 1 node 2
-apiVersion: v1
-kind: Service
-metadata:
-  name: mongosh1-2
-  labels:
-    run: mongosh1-2
-spec:
-  ports:
-  - port: 27017
-    protocol: TCP
-  selector:
-    run: mongosh1-2
----
-apiVersion: apps/v1beta1
-kind: Deployment
-metadata:
-  name: mongosh1-2
-spec:
-  replicas: 1
-  template:
-    metadata:
-      labels:
-        name: mongosh1-2
-        run: mongosh1-2
-    spec:
-      restartPolicy: Always
-      hostname: mongosh1-2
-      containers:
-      - image: mongo:3.4.19-jessie
-        name: mongosh1-2
-        ports:
-        - name: mongosh1-2
-          containerPort: 27017
-        volumeMounts:
-            - name: mongosh1-2
-              mountPath: /data/db
-        command: ["mongod"]
-        args: ["--bind_ip", "0.0.0.0", "--noprealloc", "--smallfiles", "--replSet", "rs1", "--dbpath", "/data/db", "--noauth", "--port", "27017"]
-      volumes:
-        - name: mongosh1-2
-          #persistentVolumeClaim:
-          #  claimName: mongosh1-2
 ---
 # Mongo shard replica set 1 node 1
 apiVersion: v1
@@ -178,6 +135,9 @@ spec:
   replicas: 1
   template:
     metadata:
+      annotations:
+        newrelic.com/integrations-sidecar-configmap: "mongodb-newrelic-integrations-config"
+        newrelic.com/integrations-sidecar-imagename: {{ .Values.image }}
       labels:
         name: mongosh2-1
         run: mongosh2-1
@@ -194,7 +154,11 @@ spec:
               - bash 
               - -c
               - >- 
-                mongo --eval 'rs.initiate({ _id : "rs2", members: [{ _id : 0, host : "mongosh2-1:27017" },{ _id : 1, host : "mongosh2-2:27017" }]})'
+                sleep 5;
+                mongo --eval 'rs.initiate({ _id : "rs2", members: [{ _id : 0, host : "mongosh2-1:27017" }]})'
+                sleep 10;
+                mongo admin --eval 'db.createRole({role: "listCollections",privileges: [{resource: {db:"",collection:""},actions: ["listCollections"]}],roles: []})';
+                mongo admin --eval 'db.createUser({user: "username",pwd: "password",roles: ["clusterMonitor","listCollections"]})';
         ports:
         - name: mongosh2-1
           containerPort: 27017
@@ -207,50 +171,6 @@ spec:
         - name: mongosh2-1
           #persistentVolumeClaim:
           #  claimName: mongosh2-1
----
-# Mongo shard replica set 1 node 2
-apiVersion: v1
-kind: Service
-metadata:
-  name: mongosh2-2
-  labels:
-    run: mongosh2-2
-spec:
-  ports:
-  - port: 27017
-    protocol: TCP
-  selector:
-    run: mongosh2-2
----
-apiVersion: apps/v1beta1
-kind: Deployment
-metadata:
-  name: mongosh2-2
-spec:
-  replicas: 1
-  template:
-    metadata:
-      labels:
-        name: mongosh2-2
-        run: mongosh2-2
-    spec:
-      restartPolicy: Always
-      hostname: mongosh2-2
-      containers:
-      - image: mongo:3.4.19-jessie
-        name: mongosh2-2
-        ports:
-        - name: mongosh2-2
-          containerPort: 27017
-        volumeMounts:
-            - name: mongosh2-2
-              mountPath: /data/db
-        command: ["mongod"]
-        args: ["--bind_ip", "0.0.0.0", "--noprealloc", "--smallfiles", "--replSet", "rs2", "--dbpath", "/data/db", "--noauth", "--port", "27017"]
-      volumes:
-        - name: mongosh2-2
-          #persistentVolumeClaim:
-          #  claimName: mongosh2-2
 ---
 # Mongo shard replica set 1 node 1
 apiVersion: v1
@@ -274,6 +194,9 @@ spec:
   replicas: 1
   template:
     metadata:
+      annotations:
+        newrelic.com/integrations-sidecar-configmap: "mongodb-newrelic-integrations-config"
+        newrelic.com/integrations-sidecar-imagename: {{ .Values.image }}
       labels:
         name: mongosh3-1
         run: mongosh3-1
@@ -290,7 +213,11 @@ spec:
               - bash 
               - -c
               - >- 
-                mongo --eval 'rs.initiate({ _id : "rs3", members: [{ _id : 0, host : "mongosh3-1:27017" },{ _id : 1, host : "mongosh3-2:27017" }]})'
+                sleep 5;
+                mongo --eval 'rs.initiate({ _id : "rs3", members: [{ _id : 0, host : "mongosh3-1:27017" }]})';
+                sleep 10;
+                mongo admin --eval 'db.createRole({role: "listCollections",privileges: [{resource: {db:"",collection:""},actions: ["listCollections"]}],roles: []})';
+                mongo admin --eval 'db.createUser({user: "username",pwd: "password",roles: ["clusterMonitor","listCollections"]})';
         ports:
         - name: mongosh3-1
           containerPort: 27017
@@ -303,50 +230,6 @@ spec:
         - name: mongosh3-1
           #persistentVolumeClaim:
           #  claimName: mongosh3-1
----
-# Mongo shard replica set 1 node 2
-apiVersion: v1
-kind: Service
-metadata:
-  name: mongosh3-2
-  labels:
-    run: mongosh3-2
-spec:
-  ports:
-  - port: 27017
-    protocol: TCP
-  selector:
-    run: mongosh3-2
----
-apiVersion: apps/v1beta1
-kind: Deployment
-metadata:
-  name: mongosh3-2
-spec:
-  replicas: 1
-  template:
-    metadata:
-      labels:
-        name: mongosh3-2
-        run: mongosh3-2
-    spec:
-      restartPolicy: Always
-      hostname: mongosh3-2
-      containers:
-      - image: mongo:3.4.19-jessie
-        name: mongosh3-2
-        ports:
-        - name: mongosh3-2
-          containerPort: 27017
-        volumeMounts:
-            - name: mongosh3-2
-              mountPath: /data/db
-        command: ["mongod"]
-        args: ["--bind_ip", "0.0.0.0", "--noprealloc", "--smallfiles", "--replSet", "rs3", "--dbpath", "/data/db", "--noauth", "--port", "27017"]
-      volumes:
-        - name: mongosh3-2
-          #persistentVolumeClaim:
-          #  claimName: mongosh3-2
 ---
 apiVersion: v1
 kind: Service
@@ -389,11 +272,8 @@ spec:
               - -c
               - >- 
                 until mongo mongosh1-1:27017 --eval 'db.runCommand( { serverStatus: 1 } )'; do sleep 5; done;
-                until mongo mongosh1-2:27017 --eval 'db.runCommand( { serverStatus: 1 } )'; do sleep 5; done;
                 until mongo mongosh2-1:27017 --eval 'db.runCommand( { serverStatus: 1 } )'; do sleep 5; done;
-                until mongo mongosh2-2:27017 --eval 'db.runCommand( { serverStatus: 1 } )'; do sleep 5; done;
                 until mongo mongosh3-1:27017 --eval 'db.runCommand( { serverStatus: 1 } )'; do sleep 5; done;
-                until mongo mongosh3-2:27017 --eval 'db.runCommand( { serverStatus: 1 } )'; do sleep 5; done;
                 until mongo mongocfg1:27019 --eval 'db.runCommand( { serverStatus: 1 } )'; do sleep 5; done;
                 sleep 10;
                 mongo admin --eval 'db.createRole({role: "listCollections",privileges: [{resource: {db:"",collection:""},actions: ["listCollections"]}],roles: []})';
@@ -415,6 +295,71 @@ spec:
         - name: mongos1
 #          persistentVolumeClaim:
 #            claimName: mongos1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongos2
+  labels:
+    run: mongos2
+spec:
+  ports:
+  - port: 27017
+    protocol: TCP 
+  selector:
+    run: mongos2
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: mongos2
+spec:
+  replicas: 1
+  template:
+    metadata:
+      annotations:
+        newrelic.com/integrations-sidecar-configmap: "mongodb-newrelic-integrations-config"
+        newrelic.com/integrations-sidecar-imagename: {{ .Values.image }}
+      labels:
+        name: mongos2
+        run: mongos2
+    spec:
+      restartPolicy: Always
+      hostname: mongos2
+      containers:
+      - image: mongo:3.4.19-jessie
+        name: mongos2
+        lifecycle:
+          postStart:
+            exec:
+              command: 
+              - bash
+              - -c
+              - >- 
+                until mongo mongosh1-1:27017 --eval 'db.runCommand( { serverStatus: 1 } )'; do sleep 5; done;
+                until mongo mongosh2-1:27017 --eval 'db.runCommand( { serverStatus: 1 } )'; do sleep 5; done;
+                until mongo mongosh3-1:27017 --eval 'db.runCommand( { serverStatus: 1 } )'; do sleep 5; done;
+                until mongo mongocfg1:27019 --eval 'db.runCommand( { serverStatus: 1 } )'; do sleep 5; done;
+                sleep 10;
+                mongo admin --eval 'db.createRole({role: "listCollections",privileges: [{resource: {db:"",collection:""},actions: ["listCollections"]}],roles: []})';
+                mongo admin --eval 'db.createUser({user: "username",pwd: "password",roles: ["clusterMonitor","listCollections"]})';
+                mongo --eval 'sh.addShard("rs1/mongosh1-1:27017"); sh.addShard("rs2/mongosh2-1:27017"); sh.addShard("rs3/mongosh3-1:27017");'
+        ports:
+        - name: mongos2
+          containerPort: 27017
+        volumeMounts:
+            - name: mongos2
+              mountPath: /data/db
+        command: 
+          - bash
+          - -c
+          - >- 
+            until mongo mongocfg1:27019 --eval 'db.runCommand( { serverStatus: 1 } )'; do sleep 5; done;
+            mongos --bind_ip 0.0.0.0 --configdb cfgrs/mongocfg1:27019
+      volumes:
+        - name: mongos2
+#          persistentVolumeClaim:
+#            claimName: mongos2
 ---
 apiVersion: v1
 kind: ConfigMap
