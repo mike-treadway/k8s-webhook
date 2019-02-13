@@ -1,5 +1,7 @@
 # Kubernetes webhook for New Relic
 
+[![Build Status](https://travis-ci.com/newrelic/k8s-webhook.svg?branch=master)](https://travis-ci.com/newrelic/k8s-webhook) [![Go Report Card](https://goreportcard.com/badge/github.com/newrelic/k8s-webhook)](https://goreportcard.com/report/github.com/newrelic/k8s-webhook)
+
 ## How does it work?
 
 New Relic requires the following environment variables to identify Kubernetes objects in the APM agents:
