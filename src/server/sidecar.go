@@ -195,7 +195,7 @@ func (sm *SidecarMutator) createPatch(pod *corev1.Pod, containers []corev1.Conta
 	return patch, nil
 }
 
-func (sm *SidecarMutator) addEnvVars(pod *corev1.Pod, sidecar *corev1.Container) {
+func (sm *SidecarMutator) addEnvVars(pod *corev1.Pod, sidecar *corev1.Container, envToArgs map[string]string) {
 	sidecar.Env = sm.envGenerator.getVars(pod, &pod.Spec.Containers[0])
 
 	sidecar.Env = append(sidecar.Env, []corev1.EnvVar{
@@ -224,6 +224,24 @@ func (sm *SidecarMutator) addEnvVars(pod *corev1.Pod, sidecar *corev1.Container)
 	if len(labels) > 0 {
 		sidecar.Env = append(sidecar.Env, createEnvVarFromString("NEW_RELIC_METADATA_KUBERNETES_LABELS", labels[:len(labels)-1]))
 	}
+
+	if len(pod.Spec.Containers) > 0 {
+		for _, env := range pod.Spec.Containers[0].Env {
+			if arg := envToArgs[env.Name]; arg != "" {
+				e := env.DeepCopy()
+				e.Name = arg
+				sidecar.Env = append(sidecar.Env, *e)
+			}
+		}
+	}
+	if len(envToArgs) > 0 {
+		envs := []string{}
+		for _, v := range envToArgs {
+			envs = append(envs, v)
+		}
+		sidecar.Env = append(sidecar.Env, createEnvVarFromString("NRIA_PASSTHROUGH_ENVIRONMENT", strings.Join(envs, ",")))
+	}
+
 }
 
 type integrationCfg struct {
@@ -258,11 +276,11 @@ func (sm *SidecarMutator) createSidecar(pod *corev1.Pod) ([]corev1.Container, []
 		return nil, nil, errors.Wrapf(err, "error unmarshaling integration config: %s", configMapName)
 	}
 
-	envArgs := map[string]string{}
+	envToArgs := map[string]string{}
 	for _, inst := range intCfg.Instances {
 		for k, v := range inst.Arguments {
 			if strings.HasPrefix(v, "$") {
-				envArgs[v[1:]] = strings.ToUpper(k)
+				envToArgs[v[1:]] = strings.ToUpper(k)
 			}
 		}
 	}
@@ -297,23 +315,9 @@ func (sm *SidecarMutator) createSidecar(pod *corev1.Pod) ([]corev1.Container, []
 			volCp.ReadOnly = true
 			containerDef.VolumeMounts = append(containerDef.VolumeMounts, *volCp)
 		}
-		for _, env := range pod.Spec.Containers[0].Env {
-			if envArgs[env.Name] != "" {
-				e := env.DeepCopy()
-				e.Name = envArgs[env.Name]
-				containerDef.Env = append(containerDef.Env, *e)
-			}
-		}
 	}
 
-	sm.addEnvVars(pod, &containerDef)
-	if len(envArgs) > 0 {
-		envs := []string{}
-		for _, v := range envArgs {
-			envs = append(envs, v)
-		}
-		containerDef.Env = append(containerDef.Env, createEnvVarFromString("NRIA_PASSTHROUGH_ENVIRONMENT", strings.Join(envs, ",")))
-	}
+	sm.addEnvVars(pod, &containerDef, envToArgs)
 
 	return []corev1.Container{containerDef}, volumes, nil
 }
