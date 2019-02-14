@@ -6,4 +6,4 @@ RUN go get -d github.com/newrelic/nri-redis/... && \
 
 FROM newrelic/infrastructure:latest
 COPY --from=builder /go/src/github.com/newrelic/nri-redis/bin/nr-redis /var/db/newrelic-infra/newrelic-integrations/bin/nr-redis
-COPY --from=builder /go/src/github.com/newrelic/nri-redis/redis-definition.yml /var/db/newrelic-infra/newrelic-integrations/redis-definition.yml
+COPY --from=builder /go/src/github.com/newrelic/nri-redis/redis-definition.yml /var/db/newrelic-infra/newrelic-integrations/redis-definition.yaml
