@@ -13,14 +13,15 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/newrelic/k8s-webhook/src/k8s"
+
 	"go.uber.org/zap/zapcore"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/kelseyhightower/envconfig"
 	"go.uber.org/zap"
 
-	"github.com/newrelic/k8s-metadata-injection/src/k8s"
-	"github.com/newrelic/k8s-metadata-injection/src/server"
+	"github.com/newrelic/k8s-webhook/src/server"
 )
 
 const (

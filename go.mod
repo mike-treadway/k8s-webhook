@@ -1,4 +1,4 @@
-module github.com/newrelic/k8s-metadata-injection
+module github.com/newrelic/k8s-webhook
 
 require (
 	github.com/emicklei/go-restful v2.8.1+incompatible // indirect
