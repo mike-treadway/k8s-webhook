@@ -22,7 +22,18 @@ spec:
         image: mysql:5
         env:
           - name: MYSQL_ROOT_PASSWORD
-            value: root
+            valueFrom:
+              secretKeyRef:
+                name: mysqlsecret
+                key: password
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysqlsecret
+type: Opaque
+data:
+  password: cm9vdA==
 ---
 apiVersion: v1
 kind: ConfigMap
