@@ -97,7 +97,7 @@ spec:
         app: rabbitmq
       annotations:
         newrelic.com/integrations-sidecar-configmap: "rabbitmq-newrelic-integrations-config"
-        newrelic.com/integrations-sidecar-imagename: {{ .Values.image }}
+        newrelic.com/integrations-sidecar-imagename: "newrelic/k8s-nri-rabbitmq"
     spec:
       serviceAccountName: rabbitmq
       terminationGracePeriodSeconds: 10

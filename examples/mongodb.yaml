@@ -21,7 +21,7 @@ spec:
     metadata:
       annotations:
         newrelic.com/integrations-sidecar-configmap: "mongodb-cfg-newrelic-integrations-config"
-        newrelic.com/integrations-sidecar-imagename: {{ .Values.image }}
+        newrelic.com/integrations-sidecar-imagename: "newrelic/k8s-nri-mongodb"
       labels:
         name: mongocfg1
         run: mongocfg1
@@ -78,7 +78,7 @@ spec:
     metadata:
       annotations:
         newrelic.com/integrations-sidecar-configmap: "mongodb-newrelic-integrations-config"
-        newrelic.com/integrations-sidecar-imagename: {{ .Values.image }}
+        newrelic.com/integrations-sidecar-imagename: "newrelic/k8s-nri-mongodb"
       labels:
         name: mongosh1-1
         run: mongosh1-1
@@ -137,7 +137,7 @@ spec:
     metadata:
       annotations:
         newrelic.com/integrations-sidecar-configmap: "mongodb-newrelic-integrations-config"
-        newrelic.com/integrations-sidecar-imagename: {{ .Values.image }}
+        newrelic.com/integrations-sidecar-imagename: "newrelic/k8s-nri-mongodb"
       labels:
         name: mongosh2-1
         run: mongosh2-1
@@ -196,7 +196,7 @@ spec:
     metadata:
       annotations:
         newrelic.com/integrations-sidecar-configmap: "mongodb-newrelic-integrations-config"
-        newrelic.com/integrations-sidecar-imagename: {{ .Values.image }}
+        newrelic.com/integrations-sidecar-imagename: "newrelic/k8s-nri-mongodb"
       labels:
         name: mongosh3-1
         run: mongosh3-1
@@ -254,7 +254,7 @@ spec:
     metadata:
       annotations:
         newrelic.com/integrations-sidecar-configmap: "mongodb-newrelic-integrations-config"
-        newrelic.com/integrations-sidecar-imagename: {{ .Values.image }}
+        newrelic.com/integrations-sidecar-imagename: "newrelic/k8s-nri-mongodb"
       labels:
         name: mongos1
         run: mongos1
@@ -319,7 +319,7 @@ spec:
     metadata:
       annotations:
         newrelic.com/integrations-sidecar-configmap: "mongodb-newrelic-integrations-config"
-        newrelic.com/integrations-sidecar-imagename: {{ .Values.image }}
+        newrelic.com/integrations-sidecar-imagename: "newrelic/k8s-nri-mongodb"
       labels:
         name: mongos2
         run: mongos2
