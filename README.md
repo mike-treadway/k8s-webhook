@@ -142,7 +142,7 @@ spec:
     metadata:
       annotations:
         newrelic.com/integrations-sidecar-configmap: "mysql-newrelic-integrations-config"
-        newrelic.com/integrations-sidecar-imagename: "newrelic/mysql-integration"
+        newrelic.com/integrations-sidecar-imagename: "newrelic/k8s-nri-mysql"
       labels:
         app: mysql
     spec:
