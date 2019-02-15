@@ -2,20 +2,22 @@
 
 ## How does it work?
 
-New Relic requires the following environment variables to identify Kubernetes objects in the APM agents:
+The webhook intercepts POD creation requests to the Kubernetes API and mutates them in the following ways:
 
-- `NEW_RELIC_METADATA_KUBERNETES_CLUSTER_NAME`
-- `NEW_RELIC_METADATA_KUBERNETES_NODE_NAME`
-- `NEW_RELIC_METADATA_KUBERNETES_NAMESPACE_NAME`
-- `NEW_RELIC_METADATA_KUBERNETES_DEPLOYMENT_NAME`
-- `NEW_RELIC_METADATA_KUBERNETES_POD_NAME`
-- `NEW_RELIC_METADATA_KUBERNETES_CONTAINER_NAME`
-- `NEW_RELIC_METADATA_KUBERNETES_CONTAINER_IMAGE_NAME`
+* Injects the following environment variables needed by the APM agents to identify Kubernetes objects
 
-These environment variables can be set manually by the customer, or they can be automatically injected using a MutatingAdmissionWebhook.
-New Relic provides an easy method for deploying this automatic approach.
+    - `NEW_RELIC_METADATA_KUBERNETES_CLUSTER_NAME`
+    - `NEW_RELIC_METADATA_KUBERNETES_NODE_NAME`
+    - `NEW_RELIC_METADATA_KUBERNETES_NAMESPACE_NAME`
+    - `NEW_RELIC_METADATA_KUBERNETES_DEPLOYMENT_NAME`
+    - `NEW_RELIC_METADATA_KUBERNETES_POD_NAME`
+    - `NEW_RELIC_METADATA_KUBERNETES_CONTAINER_NAME`
+    - `NEW_RELIC_METADATA_KUBERNETES_CONTAINER_IMAGE_NAME`
 
-For monitoring services running in pods, a sidecar containing the agent and relevant integration will be injected into all marked pods.
+    These environment variables can be set manually by the customer, or they can be automatically injected using a MutatingAdmissionWebhook.
+    New Relic provides an easy method for deploying this automatic approach.
+
+* Enables the monitoring of services running in pods, by injecting a sidecar containing the agent and relevant integration into all marked pods.
 ## Setup
 
 ### 1) Check if MutatingAdmissionWebhook is enabled on your cluster
@@ -30,13 +32,13 @@ admissionregistration.k8s.io/v1beta1
 ### 2) Install the injection
 
 ```bash
-$ kubectl apply -f deploy/newrelic-metadata-injection.yaml
+$ kubectl apply -f deploy/newrelic-webhook.yaml
 ```
 
 Executing this:
 
-- creates `newrelic-metadata-injection-deployment` and `newrelic-metadata-injection-svc`.
-- registers the `newrelic-metadata-injection-svc` service as a MutatingAdmissionWebhook with the Kubernetes API.
+- creates `newrelic-webhook-deployment` and `newrelic-webhook-svc`.
+- registers the `newrelic-webhook-svc` service as a MutatingAdmissionWebhook with the Kubernetes API.
 
 ### 3) Install the certificates
 
@@ -46,10 +48,10 @@ This webhook needs to be authenticated by the Kubernetes extension API server, s
 
 ```bash
 $ namespace=default # Change the namespace here if you also changed it in the yaml files.
-$ serverCert=$(kubectl get csr newrelic-metadata-injection-svc.${namespace} -o jsonpath='{.status.certificate}')
+$ serverCert=$(kubectl get csr newrelic-webhook-svc.${namespace} -o jsonpath='{.status.certificate}')
 $ tmpdir=$(mktemp -d)
 $ echo ${serverCert} | openssl base64 -d -A -out ${tmpdir}/server-cert.pem
-$ kubectl patch secret newrelic-metadata-injection-secret --type='json' \
+$ kubectl patch secret newrelic-webhook-secret --type='json' \
     -p "[{'op': 'replace', 'path':'/data/tls.crt', 'value':'$(serverCert)'}]"
 $ rm -rf $(tmpdir)
 ```
@@ -88,24 +90,24 @@ If you wish to learn more about TLS certificates management inside Kubernetes, c
 Otherwise, if you are managing the certificate manually you will have to create the TLS secret with the signed certificate/key pair and patch the webhook's CA bundle:
 
 ```bash
-$ kubectl create secret tls newrelic-metadata-injection-secret \
+$ kubectl create secret tls newrelic-webhook-secret \
       --key=server-key.pem \
       --cert=signed-server-cert.pem \
       --dry-run -o yaml |
   kubectl -n default apply -f -
 
 $ caBundle=$(cat caBundle.pem | base64 | td -d '\n')
-$ kubectl patch mutatingwebhookconfiguration newrelic-metadata-injection-cfg --type='json' -p "[{'op': 'replace', 'path': '/webhooks/0/clientConfig/caBundle', 'value':'${caBundle}'}]"
+$ kubectl patch mutatingwebhookconfiguration newrelic-webhook-cfg --type='json' -p "[{'op': 'replace', 'path': '/webhooks/0/clientConfig/caBundle', 'value':'${caBundle}'}]"
 ```
 
 Either certificate management choice made, the important thing is to have the secret created with the correct name and namespace. As long as this is done the webhook server will be able to pick it up.
 
-### 3) Enable the automatic Kubernetes metadata injection on your namespaces
+### 3) Enable the webhook on your namespaces
 
-The injection is only applied to namespaces that have the `newrelic-metadata-injection` label set to `enabled`.
+The webhook will only monitor namespaces that have the `newrelic-webhook` label set to `enabled`.
 
 ```
-$ kubectl label namespace <namespace> newrelic-metadata-injection=enabled
+$ kubectl label namespace <namespace> newrelic-webhook=enabled
 ```
 
 ### 4) Enable monitoring of pods
@@ -140,7 +142,7 @@ spec:
     metadata:
       annotations:
         newrelic.com/integrations-sidecar-configmap: "mysql-newrelic-integrations-config"
-        newrelic.com/integrations-sidecar-imagename: "newrelic/mysql-integration"
+        newrelic.com/integrations-sidecar-imagename: "newrelic/k8s-nri-mysql"
       labels:
         app: mysql
     spec:
@@ -205,8 +207,8 @@ Currently for K8s libraries it uses version 1.13.1. Only couple of libraries are
 
 ### Configuration
 
-* Copy the deployment file `deploy/newrelic-metadata-injection.yaml` to `deploy/local.yaml`.
-* Edit the file and set the following value as container image: `internal/k8s-metadata-injector`.
+* Copy the deployment file `deploy/newrelic-webhook.yaml` to `deploy/local.yaml`.
+* Edit the file and set the following value as container image: `internal/newrelic-webhook-injector`.
 * Make sure that `imagePullPolicy: Always` is not present in the file (otherwise, the image won't be pulled).
 
 ### Run
