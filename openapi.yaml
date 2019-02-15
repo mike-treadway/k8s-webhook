@@ -6,7 +6,7 @@ info:
   title: New Relic Kubernetes Metadata Injection MutatingAdmissionWebhook
   version: 1.0.0
 servers:
-  - url: 'https://newrelic-metadata-injection-svc.default.svc/'
+  - url: 'https://newrelic-webhook-svc.default.svc/'
 paths:
   /mutate:
     post:
@@ -120,5 +120,5 @@ components:
         - response
       type: object
 externalDocs:
-  description: k8s-metadata-injection repository
-  url: 'https://github.com/newrelic/k8s-metadata-injection'
+  description: k8s-webhook repository
+  url: 'https://github.com/newrelic/k8s-webhook'

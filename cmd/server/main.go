@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	appName        = "new-relic-k8s-metadata-injection"
+	appName        = "new-relic-k8s-webhook"
 	defaultTimeout = time.Second * 30
 )
 

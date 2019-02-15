@@ -1,22 +1,22 @@
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: newrelic-metadata-injection-deployment
+  name: newrelic-webhook-deployment
   namespace: default
   labels:
-    app: newrelic-metadata-injection
+    app: newrelic-webhook
 spec:
   replicas: 1
   template:
     metadata:
       namespace: default
       labels:
-        app: newrelic-metadata-injection
+        app: newrelic-webhook
     spec:
-      serviceAccountName: newrelic-metadata-injection-service-account
+      serviceAccountName: newrelic-webhook-service-account
       containers:
-      - name: metadata-injector
-        image: newrelic/k8s-metadata-injection:latest
+      - name: newrelic-webhook-injector
+        image: newrelic/k8s-webhook:latest
         env:
         - name: clusterName
           value: "<YOUR_CLUSTER_NAME>"
@@ -28,33 +28,33 @@ spec:
       volumes:
       - name: tls-key-cert-pair
         secret:
-          secretName: newrelic-metadata-injection-secret
+          secretName: newrelic-webhook-secret
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: newrelic-metadata-injection-svc
+  name: newrelic-webhook-svc
   namespace: default
   labels:
-    app: newrelic-metadata-injection
+    app: newrelic-webhook
 spec:
   ports:
   - port: 443
     targetPort: 443
   selector:
-    app: newrelic-metadata-injection
+    app: newrelic-webhook
 ---
 apiVersion: admissionregistration.k8s.io/v1beta1
 kind: MutatingWebhookConfiguration
 metadata:
-  name: newrelic-metadata-injection-cfg
+  name: newrelic-webhook-cfg
   labels:
-    app: newrelic-metadata-injection
+    app: newrelic-webhook
 webhooks:
-- name: metadata-injection.newrelic.com
+- name: webhook.newrelic.com
   clientConfig:
     service:
-      name: newrelic-metadata-injection-svc
+      name: newrelic-webhook-svc
       namespace: default
       path: "/mutate"
     caBundle: ""
@@ -64,8 +64,8 @@ webhooks:
     apiVersions: ["v1"]
     resources: ["pods"]
   # Uncomment these lines in case you want to enable the metadata decoration
-  # only for pods living in namespaces labeled with 'newrelic-metadata-injection'.
+  # only for pods living in namespaces labeled with 'newrelic-webhook'.
   # namespaceSelector:
   #   matchLabels:
-  #     newrelic-metadata-injection: enabled
+  #     newrelic-webhook: enabled
   failurePolicy: Ignore
