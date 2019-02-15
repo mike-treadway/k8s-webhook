@@ -12,13 +12,13 @@ RUN go mod download
 
 COPY . /app
 ENV CGO_ENABLED=0
-RUN go build -o bin/k8s-metadata-injection cmd/server/main.go
+RUN go build -o bin/k8s-webhook cmd/server/main.go
 
 FROM alpine:latest
 
 RUN mkdir /app
 RUN apk add --update openssl
 COPY entrypoint.sh /app
-COPY --from=build /app/bin/k8s-metadata-injection /app
+COPY --from=build /app/bin/k8s-webhook /app
 
 CMD ["/app/entrypoint.sh"]

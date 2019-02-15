@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-deployment
+  labels:
+    app: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      annotations:
+        newrelic.com/integrations-sidecar-configmap: "redis-newrelic-integrations-config"
+        newrelic.com/integrations-sidecar-imagename: "newrelic/k8s-nri-redis"
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:5.0.3-alpine
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-newrelic-integrations-config
+  namespace: default
+data:
+  config.yaml: |
+    integration_name: com.newrelic.redis
+    instances:
+      - name: redis-metrics
+        command: metrics
+        arguments:
+          hostname: localhost
+          port: 6379
+        labels:
+          environment: production
+      - name: redis-inventory
+        command: inventory
+        arguments:
+          hostname: localhost
+          port: 6379
+        labels:
+          environment: production
+  definition.yaml: |
+    name: com.newrelic.redis
+    description: Reports status and metrics for redis service
+    protocol_version: 1
+    os: linux
+    commands:
+      metrics:
+        command:
+          - ./bin/nr-redis
+          - --metrics
+        interval: 15
+      inventory:
+        command:
+          - ./bin/nr-redis
+          - --inventory
+        prefix: config/redis
+        interval: 60

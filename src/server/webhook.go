@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strings"
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
@@ -20,7 +19,6 @@ import (
 	"k8s.io/api/admission/v1beta1"
 	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 )
 
@@ -35,36 +33,15 @@ var ignoredNamespaces = []string{
 	metav1.NamespacePublic,
 }
 
-func createEnvVarFromFieldPath(envVarName, fieldPath string) corev1.EnvVar {
-	return corev1.EnvVar{Name: envVarName, ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: fieldPath}}}
+// PatchOperation defines a patch to a k8s api resource
+type PatchOperation struct {
+	Op    string      `json:"op"`
+	Path  string      `json:"path"`
+	Value interface{} `json:"value,omitempty"`
 }
 
-func createEnvVarFromString(envVarName, envVarValue string) corev1.EnvVar {
-	return corev1.EnvVar{Name: envVarName, Value: envVarValue}
-}
-
-// getEnvVarsToInject returns the environment variables to inject in the given container
-func (whsvr *Webhook) getEnvVarsToInject(pod *corev1.Pod, container *corev1.Container) []corev1.EnvVar {
-	vars := []corev1.EnvVar{
-		createEnvVarFromString("NEW_RELIC_METADATA_KUBERNETES_CLUSTER_NAME", whsvr.ClusterName),
-		createEnvVarFromFieldPath("NEW_RELIC_METADATA_KUBERNETES_NODE_NAME", "spec.nodeName"),
-		createEnvVarFromFieldPath("NEW_RELIC_METADATA_KUBERNETES_NAMESPACE_NAME", "metadata.namespace"),
-		createEnvVarFromFieldPath("NEW_RELIC_METADATA_KUBERNETES_POD_NAME", "metadata.name"),
-		createEnvVarFromString("NEW_RELIC_METADATA_KUBERNETES_CONTAINER_NAME", container.Name),
-		createEnvVarFromString("NEW_RELIC_METADATA_KUBERNETES_CONTAINER_IMAGE_NAME", container.Image),
-	}
-
-	// Guess the name of the deployment. We check whether the Pod is Owned by a ReplicaSet and confirms with the
-	// naming convention for a Deployment. This can give a false positive if the user uses ReplicaSets directly.
-	if len(pod.OwnerReferences) == 1 && pod.OwnerReferences[0].Kind == "ReplicaSet" {
-		podParts := strings.Split(pod.GenerateName, "-")
-		if len(podParts) >= 3 {
-			deployment := strings.Join(podParts[:len(podParts)-2], "-")
-			vars = append(vars, createEnvVarFromString("NEW_RELIC_METADATA_KUBERNETES_DEPLOYMENT_NAME", deployment))
-		}
-	}
-
-	return vars
+type podMutator interface {
+	Mutate(pod *corev1.Pod) ([]PatchOperation, error)
 }
 
 // Webhook is a webhook server that can accept requests from the Apiserver
@@ -77,6 +54,7 @@ type Webhook struct {
 	Mu          sync.RWMutex
 	Server      *http.Server
 	CertWatcher *fsnotify.Watcher
+	Mutators    []podMutator
 }
 
 // GetCert returns the certificate that should be used by the server in the TLS handshake.
@@ -84,12 +62,6 @@ func (whsvr *Webhook) GetCert(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 	whsvr.Mu.Lock()
 	defer whsvr.Mu.Unlock()
 	return whsvr.Cert, nil
-}
-
-type patchOperation struct {
-	Op    string      `json:"op"`
-	Path  string      `json:"path"`
-	Value interface{} `json:"value,omitempty"`
 }
 
 func init() {
@@ -109,78 +81,15 @@ func mutationRequired(ignoredList []string, metadata *metav1.ObjectMeta) bool {
 	return true
 }
 
-func (whsvr *Webhook) updateContainer(pod *corev1.Pod, index int, container *corev1.Container) (patch []patchOperation) {
-	// Create map with all environment variable names
-	envVarMap := map[string]bool{}
-	for _, envVar := range container.Env {
-		envVarMap[envVar.Name] = true
-	}
-
-	// Create a patch for each EnvVar in toInject (if they are not yet defined on the container)
-	first := len(envVarMap) == 0
-	var value interface{}
-	basePath := fmt.Sprintf("/spec/containers/%d/env", index)
-
-	for _, inject := range whsvr.getEnvVarsToInject(pod, container) {
-		if _, present := envVarMap[inject.Name]; !present {
-			value = inject
-			path := basePath
-
-			if first {
-				// For the first element we have to create the list
-				value = []corev1.EnvVar{inject}
-				first = false
-			} else {
-				// For the other elements we can append to the list
-				path = path + "/-"
-			}
-
-			patch = append(patch, patchOperation{
-				Op:    "add",
-				Path:  path,
-				Value: value,
-			})
-		}
-	}
-	return patch
+type code interface {
+	Code() int
 }
 
-// create mutation patch for resources
-func (whsvr *Webhook) createPatch(pod *corev1.Pod) ([]byte, error) {
-	var patch []patchOperation
-
-	for i, container := range pod.Spec.Containers {
-		patch = append(patch, whsvr.updateContainer(pod, i, &container)...)
+func errorCode(err error) int {
+	if me, ok := err.(code); ok {
+		return me.Code()
 	}
-
-	return json.Marshal(patch)
-}
-
-// main mutation process
-func (whsvr *Webhook) mutate(ar *v1beta1.AdmissionReview) ([]byte, error) {
-	req := ar.Request
-	var pod corev1.Pod
-	if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
-		whsvr.Logger.Errorw("could not unmarshal raw object", "err", err, "object", string(req.Object.Raw))
-		return nil, err
-	}
-
-	whsvr.Logger.Infow("received admission review", "kind", req.Kind, "namespace", req.Namespace, "name",
-		req.Name, "pod", pod.Name, "UID", req.UID, "operation", req.Operation, "userinfo", req.UserInfo)
-
-	// determine whether to perform mutation
-	if !mutationRequired(ignoredNamespaces, &pod.ObjectMeta) {
-		whsvr.Logger.Infow("skipped mutation", "namespace", pod.Namespace, "pod", pod.Name, "reason", "policy check (special namespaces)")
-		return nil, nil
-	}
-
-	patchBytes, err := whsvr.createPatch(&pod)
-	if err != nil {
-		return nil, err
-	}
-
-	whsvr.Logger.Infow("admission response created", "response", string(patchBytes))
-	return patchBytes, nil
+	return http.StatusInternalServerError
 }
 
 // Serve method for webhook server
@@ -229,21 +138,50 @@ func (whsvr *Webhook) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	patch, err := whsvr.mutate(&admissionReviewRequest)
-	if err != nil {
-		whsvr.Logger.Errorw("error during mutation", "err", err)
-		http.Error(w, fmt.Sprintf("error during mutation: %q", err.Error()), http.StatusInternalServerError)
+	req := admissionReviewRequest.Request
+	var pod corev1.Pod
+	if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
+		whsvr.Logger.Errorw("could not unmarshal raw object", "err", err, "object", string(req.Object.Raw))
+		http.Error(w, fmt.Sprintf("failed to unmarshal pod: %q %q", body, err.Error()), http.StatusBadRequest)
 		return
 	}
-
-	if len(patch) > 0 {
-		admissionReviewResponse.Response.Patch = patch
-		admissionReviewResponse.Response.PatchType = func() *v1beta1.PatchType {
-			pt := v1beta1.PatchTypeJSONPatch // Only PatchTypeJSONPatch is allowed by now.
-			return &pt
-		}()
+	// workaround for empty namespace on the pod level
+	if pod.Namespace == "" {
+		pod.Namespace = req.Namespace
 	}
 
+	whsvr.Logger.Infow("received admission review", "kind", req.Kind, "namespace", req.Namespace, "name",
+		req.Name, "pod", pod.Name, "UID", req.UID, "operation", req.Operation, "userinfo", req.UserInfo)
+
+	// determine whether to perform mutation
+	if !mutationRequired(ignoredNamespaces, &pod.ObjectMeta) {
+		whsvr.Logger.Infow("skipped mutation", "namespace", pod.Namespace, "pod", pod.Name, "reason", "policy check (special namespaces)")
+	} else {
+		var patches []PatchOperation
+		for _, m := range whsvr.Mutators {
+			p, err := m.Mutate(&pod)
+			if err != nil {
+				whsvr.Logger.Errorw("error during mutation", "err", err)
+				http.Error(w, fmt.Sprintf("error during mutation: %q", err.Error()), errorCode(err))
+				return
+			}
+			patches = append(patches, p...)
+		}
+
+		if len(patches) > 0 {
+			patchBytes, err := json.Marshal(patches)
+			if err != nil {
+				whsvr.Logger.Errorw("error marshaling patch", "err", err)
+				http.Error(w, fmt.Sprintf("error marshaling patch: %q", err.Error()), http.StatusInternalServerError)
+				return
+			}
+			admissionReviewResponse.Response.Patch = patchBytes
+			admissionReviewResponse.Response.PatchType = func() *v1beta1.PatchType {
+				pt := v1beta1.PatchTypeJSONPatch // Only PatchTypeJSONPatch is allowed by now.
+				return &pt
+			}()
+		}
+	}
 	if admissionReviewRequest.Request != nil {
 		admissionReviewResponse.Response.UID = admissionReviewRequest.Request.UID
 	}

@@ -15,6 +15,7 @@ New Relic requires the following environment variables to identify Kubernetes ob
 These environment variables can be set manually by the customer, or they can be automatically injected using a MutatingAdmissionWebhook.
 New Relic provides an easy method for deploying this automatic approach.
 
+For monitoring services running in pods, a sidecar containing the agent and relevant integration will be injected into all marked pods.
 ## Setup
 
 ### 1) Check if MutatingAdmissionWebhook is enabled on your cluster
@@ -105,6 +106,84 @@ The injection is only applied to namespaces that have the `newrelic-metadata-inj
 
 ```
 $ kubectl label namespace <namespace> newrelic-metadata-injection=enabled
+```
+
+### 4) Enable monitoring of pods
+
+A sidecar will be injected into all pods having the `newrelic.com/integrations-sidecar-configmap` annotation set to the name of a config map object, in the same namespace as the targeted pod, containing the integration config. 
+The `newrelic.com/integrations-sidecar-imagename` annotation is used to specify the sidecar image to be injected.
+
+The injector expects the config map to have a `config.yaml` file and an optional `definition.yaml` file, which are the usual configurations for integrations.
+The two will be mounted to `/var/db/newrelic-infra/integrations.d/integration.yaml` and `/var/db/newrelic-infra/newrelic-integrations/definition.yaml` respectively
+and overwrite any of these if already present in the sidecar image.
+
+Passwords and other secret information passed as arguments to the integrations can be suplied as an environment variable backed by a kubernetes secret. If the name
+of an integration argument starts with `$`, the injector assumes this refers to an environment variable that is defined in the targeted pod, with the same name (minus the `$` symbol).
+
+The agent license and other agent configuration environment variables can be added to the injector deployment and they will be all copied to the injected sidecars.
+
+#### Example configuration:
+
+```
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-deployment
+  labels:
+    app: mysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      annotations:
+        newrelic.com/integrations-sidecar-configmap: "mysql-newrelic-integrations-config"
+        newrelic.com/integrations-sidecar-imagename: "newrelic/mysql-integration"
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:5
+        env:
+          - name: MYSQL_ROOT_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: mysecret
+                key: password
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-newrelic-integrations-config
+  namespace: default
+data:
+  config.yaml: |
+    integration_name: com.newrelic.mysql
+    instances:
+      - name: mysql-server
+        command: status
+        arguments:
+          hostname: localhost
+          port: 3306
+          username: root
+          password: $MYSQL_ROOT_PASSWORD
+        labels:
+          env: testenv
+          role: write-replica
+  definition.yaml: |
+    name: com.newrelic.mysql
+    description: Reports status and metrics for mysql server
+    protocol_version: 1
+    os: linux
+    commands:
+        status:
+            command:
+                - /var/db/newrelic-infra/newrelic-integrations/bin/nr-mysql
+            prefix: config/mysql
+            interval: 30
 ```
 
 ## Development

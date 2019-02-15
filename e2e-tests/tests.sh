@@ -6,9 +6,9 @@ printf 'bootstrapping starts:\n'
 . "$(dirname "$0")/k8s-e2e-bootstraping.sh"
 printf 'bootstrapping complete\n'
 
-WEBHOOK_LABEL="app=newrelic-metadata-injection"
+WEBHOOK_LABEL="app=newrelic-webhook"
 JOB_LABEL="job-name=newrelic-metadata-setup"
-DEPLOYMENT_NAME="newrelic-metadata-injection-deployment"
+DEPLOYMENT_NAME="newrelic-webhook-deployment"
 DUMMY_POD_LABEL="app=dummy"
 DUMMY_DEPLOYMENT_NAME="dummy-deployment"
 ENV_VARS_PREFIX="NEW_RELIC_METADATA_KUBERNETES"
@@ -31,9 +31,9 @@ finish() {
 
 trap finish EXIT
 
-# install the metadata-injection webhook
+# install the webhook
 kubectl create -f ../deploy/job.yaml
-awk '/image: / { print; print "        imagePullPolicy: Never"; next }1' ../deploy/newrelic-metadata-injection.yaml | kubectl create -f -
+awk '/image: / { print; print "        imagePullPolicy: Never"; next }1' ../deploy/newrelic-webhook.yaml | kubectl create -f -
 
 job_pod_name=$(get_pod_name_by_label "$JOB_LABEL")
 if [ "$job_pod_name" = "" ]; then
@@ -68,6 +68,18 @@ wait_for_pod "$pod_name"
 
 printf "webhook logs:\n"
 kubectl logs "$webhook_pod_name"
+
+sidecar_status=$(kubectl get pods "$pod_name" -o go-template --template='{{range .status.containerStatuses}}{{if eq .name  "newrelic-sidecar"}}{{.name}}{{" : "}}{{.state}}{{"\n"}}{{end}}{{end}}')
+case "$sidecar_status" in
+    *running*) 
+        printf "Pod %s contains sidecar %s\n" "$pod_name" "$sidecar_status"
+        ;;
+    *)         
+        printf "Pod %s does not contain sidecar %s\n" "$pod_name" "$sidecar_status" 
+        kubectl describe pod "$pod_name"
+        exit 1
+        ;;
+esac
 
 kubectl get pods
 kubectl describe pod "${pod_name}"

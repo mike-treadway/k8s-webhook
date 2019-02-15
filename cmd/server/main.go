@@ -13,17 +13,19 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/newrelic/k8s-webhook/src/k8s"
+
 	"go.uber.org/zap/zapcore"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/kelseyhightower/envconfig"
 	"go.uber.org/zap"
 
-	"github.com/newrelic/k8s-metadata-injection/src/server"
+	"github.com/newrelic/k8s-webhook/src/server"
 )
 
 const (
-	appName        = "new-relic-k8s-metadata-injection"
+	appName        = "new-relic-k8s-webhook"
 	defaultTimeout = time.Second * 30
 )
 
@@ -60,6 +62,11 @@ func main() {
 		logger.Errorw("could not watch folder", "folder", watchDir, "err", err)
 	}
 
+	k8sClient, err := k8s.New()
+	if err != nil {
+		logger.Fatalw("Couldn't connect to k8s api: %s", err)
+	}
+
 	whsvr := &server.Webhook{
 		KeyFile:     s.TLSKeyFile,
 		CertFile:    s.TLSCertFile,
@@ -72,6 +79,9 @@ func main() {
 		Logger: logger,
 	}
 	whsvr.Server.TLSConfig = &tls.Config{GetCertificate: whsvr.GetCert}
+	whsvr.Mutators = append(whsvr.Mutators,
+		server.NewEnvVarMutator(whsvr.ClusterName),
+		server.NewSidecarMutator(whsvr.ClusterName, k8sClient))
 
 	mux := http.NewServeMux()
 	mux.Handle("/mutate", withLoggingMiddleware(logger)(withTimeoutMiddleware(s.Timeout)(whsvr)))

@@ -1,0 +1,108 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      annotations:
+        newrelic.com/integrations-sidecar-configmap: "nginx-newrelic-integrations-config"
+        newrelic.com/integrations-sidecar-imagename: "newrelic/k8s-nri-nginx"
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.15.8
+        volumeMounts:
+          - name: nginx-conf-volume
+            mountPath: /etc/nginx/nginx.conf
+            subPath: nginx.conf
+      volumes:
+        - name: nginx-conf-volume
+          configMap:
+            name: nginx-conf
+            items:
+            - key: nginx.conf
+              path: nginx.conf
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-conf
+  namespace: default
+data:
+  nginx.conf: |
+    user  nginx;
+    worker_processes  1;
+    error_log  /var/log/nginx/error.log warn;
+    pid        /var/run/nginx.pid;
+    events {
+        worker_connections  1024;
+    }
+    http {
+        server {
+            listen 127.0.0.1;
+            location /status {
+              stub_status;
+              allow 127.0.0.1;
+              deny all;
+            }
+        }
+        default_type  application/octet-stream;
+        log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                          '$status $body_bytes_sent "$http_referer" '
+                          '"$http_user_agent" "$http_x_forwarded_for"';
+        access_log  /var/log/nginx/access.log  main;
+        sendfile        on;
+        keepalive_timeout  65;
+        include /etc/nginx/conf.d/*.conf;
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-newrelic-integrations-config
+  namespace: default
+data:
+  config.yaml: |
+    integration_name: com.newrelic.nginx
+    instances:
+        - name: nginx-server-metrics
+          command: metrics
+          arguments:
+              status_url: http://127.0.0.1/status
+          labels:
+              env: production
+              role: load_balancer
+        - name: nginx-server-inventory
+          command: inventory
+          arguments:
+              config_path: /etc/nginx/nginx.conf
+          labels:
+              env: production
+              role: load_balancer
+  definition.yaml: |
+    name: com.newrelic.nginx
+    description: Reports status and metrics for NGINX server
+    protocol_version: 1
+    os: linux
+    commands:
+        metrics:
+            command:
+              - ./bin/nr-nginx
+              - -metrics
+            interval: 30
+        inventory:
+            command:
+              - ./bin/nr-nginx
+              - -inventory
+            prefix: config/nginx
+            interval: 60
+
