@@ -2,7 +2,7 @@ apiVersion: skaffold/v1beta2
 kind: Config
 build:
   artifacts:
-  - image: internal/k8s-metadata-injector
+  - image: internal/newrelic-webhook-injector
     context: .
 deploy:
   kubectl:

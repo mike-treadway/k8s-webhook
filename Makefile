@@ -1,7 +1,7 @@
 BIN_DIR = ./bin
 TOOLS_DIR := $(BIN_DIR)/dev-tools
-BINARY_NAME = k8s-metadata-injection
-WEBHOOK_DOCKER_IMAGE_NAME=newrelic/k8s-metadata-injection
+BINARY_NAME = k8s-webhook
+WEBHOOK_DOCKER_IMAGE_NAME=newrelic/k8s-webhook
 WEBHOOK_DOCKER_IMAGE_TAG=latest
 
 GOLANGCILINT_VERSION = 1.12
