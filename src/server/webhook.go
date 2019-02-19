@@ -46,12 +46,12 @@ type podMutator interface {
 
 // Webhook is a webhook server that can accept requests from the Apiserver
 type Webhook struct {
+	sync.RWMutex
 	CertFile    string
 	KeyFile     string
 	Cert        *tls.Certificate
 	ClusterName string
 	Logger      *zap.SugaredLogger
-	Mu          sync.RWMutex
 	Server      *http.Server
 	CertWatcher *fsnotify.Watcher
 	Mutators    []podMutator
@@ -59,8 +59,8 @@ type Webhook struct {
 
 // GetCert returns the certificate that should be used by the server in the TLS handshake.
 func (whsvr *Webhook) GetCert(*tls.ClientHelloInfo) (*tls.Certificate, error) {
-	whsvr.Mu.Lock()
-	defer whsvr.Mu.Unlock()
+	whsvr.Lock()
+	defer whsvr.Unlock()
 	return whsvr.Cert, nil
 }
 
