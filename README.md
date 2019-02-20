@@ -29,18 +29,7 @@ $ kubectl api-versions | grep admissionregistration.k8s.io/v1beta1
 admissionregistration.k8s.io/v1beta1
 ```
 
-### 2) Install the injection
-
-```bash
-$ kubectl apply -f deploy/newrelic-webhook.yaml
-```
-
-Executing this:
-
-- creates `newrelic-webhook-deployment` and `newrelic-webhook-svc`.
-- registers the `newrelic-webhook-svc` service as a MutatingAdmissionWebhook with the Kubernetes API.
-
-### 3) Install the certificates
+### 2) Install the certificates
 
 This webhook needs to be authenticated by the Kubernetes extension API server, so it will need to have a signed certificate from a CA trusted by the extension API server. The certificate management is isolated from the webhook server and a secret is used to mount them. 
 
@@ -102,7 +91,20 @@ $ kubectl patch mutatingwebhookconfiguration newrelic-webhook-cfg --type='json' 
 
 Either certificate management choice made, the important thing is to have the secret created with the correct name and namespace. As long as this is done the webhook server will be able to pick it up.
 
-### 3) Enable the webhook on your namespaces
+
+
+### 3) Install the injection
+
+```bash
+$ kubectl apply -f deploy/newrelic-webhook.yaml
+```
+
+Executing this:
+
+- creates `newrelic-webhook-deployment` and `newrelic-webhook-svc`.
+- registers the `newrelic-webhook-svc` service as a MutatingAdmissionWebhook with the Kubernetes API.
+
+### 4) Enable the webhook on your namespaces
 
 The webhook will only monitor namespaces that have the `newrelic-webhook` label set to `enabled`.
 
@@ -110,7 +112,7 @@ The webhook will only monitor namespaces that have the `newrelic-webhook` label 
 $ kubectl label namespace <namespace> newrelic-webhook=enabled
 ```
 
-### 4) Enable monitoring of pods
+### 5) Enable monitoring of pods
 
 A sidecar will be injected into all pods having the `newrelic.com/integrations-sidecar-configmap` annotation set to the name of a config map object, in the same namespace as the targeted pod, containing the integration config. 
 The `newrelic.com/integrations-sidecar-imagename` annotation is used to specify the sidecar image to be injected.
