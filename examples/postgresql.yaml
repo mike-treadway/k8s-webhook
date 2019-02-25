@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgresql-deployment
+  labels:
+    app: postgresql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgresql
+  template:
+    metadata:
+      annotations:
+        newrelic.com/integrations-sidecar-configmap: "postgresql-newrelic-integrations-config"
+        newrelic.com/integrations-sidecar-imagename: "newrelic/k8s-nri-postgresql"
+      labels:
+        app: postgresql
+    spec:
+      containers:
+      - name: postgresql
+        image: postgres:10
+        env:
+          - name: NR_POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: postgresqlsecret
+                key: password
+        lifecycle:
+          postStart:
+            exec:
+              command: 
+              - bash 
+              - -c
+              - >- 
+                until psql -U postgres -c "select 1" ; do sleep 1; done;
+                psql -U postgres -c "CREATE USER new_relic WITH PASSWORD '$NR_POSTGRES_PASSWORD'";
+                psql -U postgres -c "GRANT SELECT ON pg_stat_database TO new_relic;";
+                psql -U postgres -c "GRANT SELECT ON pg_stat_database_conflicts TO new_relic;";
+                psql -U postgres -c "GRANT SELECT ON pg_stat_bgwriter TO new_relic;";
+                psql -U postgres -c "CREATE DATABASE mydb";
+                psql -U postgres -d mydb -c "CREATE SCHEMA mys; CREATE TABLE mys.mytbl(id int PRIMARY KEY, name text);";
+                psql -U postgres -d mydb -c "INSERT INTO mys.mytbl (id, name) VALUES(0, 'name');";
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgresqlsecret
+type: Opaque
+data:
+  password: cm9vdA==
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgresql-newrelic-integrations-config
+  namespace: default
+data:
+  config.yaml: |
+    integration_name: com.newrelic.postgresql
+    instances:
+      - name: sample_postgres
+        command: all_data
+        arguments:
+          username: new_relic
+          password: $NR_POSTGRES_PASSWORD
+          collection_list: '{"mydb":{"mys":{"mytbl":[]}}}'
+        labels:
+          env: production
+          role: postgresql
+  definition.yaml: |
+    name: com.newrelic.postgresql
+    description: Reports status and metrics for postgresql service
+    protocol_version: 2
+    os: linux
+    commands:
+      all_data:
+        command:
+          - ./bin/nr-postgresql
+        prefix: config/postgresql
+        interval: 15
+      metrics:
+        command:
+          - ./bin/nr-postgresql
+          - --metrics
+        prefix: config/postgresql
+        interval: 15
+      inventory:
+        command:
+          - ./bin/nr-postgresql
+          - --inventory
+        prefix: config/postgresql
+        interval: 15
