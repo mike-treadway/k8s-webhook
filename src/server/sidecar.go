@@ -316,7 +316,7 @@ func (sm *SidecarMutator) createSidecar(pod *corev1.Pod) ([]corev1.Container, []
 			if k != configKey && k != definitionKey {
 				vol := corev1.VolumeMount {
 					Name:      integrationConfigVolumeName,
-					MountPath: k,
+					MountPath: "/var/db/newrelic-infra/user_data/" + k,
 					SubPath:   k,
 				}
 				containerDef.VolumeMounts = append(containerDef.VolumeMounts, vol)
