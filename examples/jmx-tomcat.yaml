@@ -1,0 +1,149 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tomcat-config
+data:
+  jmx-config: >
+    -Dcom.sun.management.jmxremote
+    -Dcom.sun.management.jmxremote.port=9010
+    -Dcom.sun.management.jmxremote.local.only=false
+    -Dcom.sun.management.jmxremote.authenticate=false
+    -Dcom.sun.management.jmxremote.ssl=false
+---
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  name: tomcat-node
+spec:
+  serviceName: tomcat-sts
+  replicas: 2
+  template:
+    metadata:
+      annotations:
+        newrelic.com/integrations-sidecar-configmap: "jmx-tomcat-newrelic-integrations-config"
+        newrelic.com/integrations-sidecar-imagename: "newrelic/k8s-nri-jmx"
+      labels:
+        app: tomcat
+    spec:
+      containers:
+      - name: tomcat
+        image: tomcat:9.0.16-jre11
+        resources:
+          requests:
+            memory: 256Mi
+        env:
+          - name: CATALINA_OPTS
+            valueFrom:
+              configMapKeyRef:
+                name: tomcat-config
+                key: jmx-config
+        ports:
+        - containerPort: 8080
+          name: tomcat-http
+        - containerPort: 9010
+          name: tomcat-jmx
+        volumeMounts:
+        - name: tomcat-webapps
+          mountPath: /usr/local/tomcat/webapps
+  volumeClaimTemplates:
+  - metadata:
+      name: tomcat-webapps
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jmx-tomcat-newrelic-integrations-config
+  namespace: default
+data:
+  config.yaml: |
+    integration_name: com.newrelic.jmx
+
+    instances:
+      - name: jmx
+        command: all_data
+        arguments:
+          jmx_host: $HOSTNAME
+          jmx_port: 9010
+          collection_files: "/var/db/newrelic-infra/user_data/jvm-metrics.yml,/var/db/newrelic-infra/user_data/tomcat-metrics.yml"
+        labels:
+          env: staging
+  definition.yaml: |
+    name: com.newrelic.jmx
+    description: Reports status and metrics for jmx service
+    protocol_version: 2
+    os: linux
+
+    commands:
+      all_data:
+        command:
+          - ./bin/nr-jmx
+        interval: 15
+  jvm-metrics.yml: |
+    collect:
+        - domain: java.lang
+          event_type: JVMSample
+          beans:
+              - query: type=GarbageCollector,name=*
+                attributes:
+                    - CollectionCount
+                    - CollectionTime
+              - query: type=Memory
+                attributes:
+                    - HeapMemoryUsage.Committed
+                    - HeapMemoryUsage.Init
+                    - HeapMemoryUsage.Max
+                    - HeapMemoryUsage.Used
+                    - NonHeapMemoryUsage.Committed
+                    - NonHeapMemoryUsage.Init
+                    - NonHeapMemoryUsage.Max
+                    - NonHeapMemoryUsage.Used
+              - query: type=Threading
+                attributes:
+                    - ThreadCount
+                    - TotalStartedThreadCount
+              - query: type=ClassLoading
+                attributes:
+                    - LoadedClassCount
+              - query: type=Compilation
+                attributes:
+                    - TotalCompilationTime
+  tomcat-metrics.yml: |
+    collect:
+        - domain: Catalina
+          event_type: TomcatSample
+          beans:
+              - query: type=Executor,name=*
+                attributes:
+                    - poolSize
+                    - activeCount
+              - query: type=ThreadPool,name=*
+                attributes:
+                    - maxThreads
+                    - connectionCount
+              - query: type=GlobalRequestProcessor,name=*
+                attributes:
+                    - attr: bytesSent
+                      metric_type: rate
+                    - attr: bytesReceived
+                      metric_type: rate
+                    - attr: errorCount
+                      metric_type: rate
+                    - maxTime
+                    - attr: requestCount
+                      metric_type: rate
+              - query: type=Manager,*
+                attributes:
+                    - activeSessions
+                    - attr: sessionCounter
+                      metric_type: rate
+                    - attr: expiredSessions
+                      metric_type: rate
+              - query: type=DataSource,*
+                attributes:
+                    - numActive
+                    - numIdle

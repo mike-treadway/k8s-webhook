@@ -309,6 +309,21 @@ func (sm *SidecarMutator) createSidecar(pod *corev1.Pod) ([]corev1.Container, []
 			SubPath:   definitionKey,
 		},
 	}
+
+	// map the rest of the ConfigMap
+	if len(cfgMap.Data) > 2 {
+		for k := range cfgMap.Data {
+			if k != configKey && k != definitionKey {
+				vol := corev1.VolumeMount{
+					Name:      integrationConfigVolumeName,
+					MountPath: "/var/db/newrelic-infra/user_data/" + k,
+					SubPath:   k,
+				}
+				containerDef.VolumeMounts = append(containerDef.VolumeMounts, vol)
+			}
+		}
+	}
+
 	if len(pod.Spec.Containers) > 0 {
 		for _, vol := range pod.Spec.Containers[0].VolumeMounts {
 			volCp := vol.DeepCopy()

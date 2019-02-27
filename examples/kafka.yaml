@@ -1,0 +1,516 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-hs
+  labels:
+    app: kafka
+spec:
+  ports:
+  - port: 9093
+    name: server
+  clusterIP: None
+  selector:
+    app: kafka
+---
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  name: kafka
+spec:
+  serviceName: kafka-hs
+  replicas: 1
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: kafka
+      annotations:
+        newrelic.com/integrations-sidecar-configmap: "kafka-newrelic-integrations-config"
+        newrelic.com/integrations-sidecar-imagename: "newrelic/k8s-nri-kafka"
+    spec:
+      containers:
+      - name: k8skafka
+        imagePullPolicy: Always
+        image: gcr.io/google_containers/kubernetes-kafka:1.0-10.2.1
+        ports:
+        - containerPort: 9093
+          name: server
+        command:
+        - sh
+        - -c
+        - "exec kafka-server-start.sh /opt/kafka/config/server.properties --override broker.id=${HOSTNAME##*-} \
+          --override listeners=PLAINTEXT://:9093 \
+          --override zookeeper.connect=zk-cs.default.svc.cluster.local:2181 \
+          --override log.dir=/var/lib/kafka \
+          --override auto.create.topics.enable=true \
+          --override auto.leader.rebalance.enable=true \
+          --override background.threads=10 \
+          --override compression.type=producer \
+          --override delete.topic.enable=false \
+          --override leader.imbalance.check.interval.seconds=300 \
+          --override leader.imbalance.per.broker.percentage=10 \
+          --override log.flush.interval.messages=9223372036854775807 \
+          --override log.flush.offset.checkpoint.interval.ms=60000 \
+          --override log.flush.scheduler.interval.ms=9223372036854775807 \
+          --override log.retention.bytes=-1 \
+          --override log.retention.hours=168 \
+          --override log.roll.hours=168 \
+          --override log.roll.jitter.hours=0 \
+          --override log.segment.bytes=1073741824 \
+          --override log.segment.delete.delay.ms=60000 \
+          --override message.max.bytes=1000012 \
+          --override min.insync.replicas=1 \
+          --override num.io.threads=8 \
+          --override num.network.threads=3 \
+          --override num.recovery.threads.per.data.dir=1 \
+          --override num.replica.fetchers=1 \
+          --override offset.metadata.max.bytes=4096 \
+          --override offsets.commit.required.acks=-1 \
+          --override offsets.commit.timeout.ms=5000 \
+          --override offsets.load.buffer.size=5242880 \
+          --override offsets.retention.check.interval.ms=600000 \
+          --override offsets.retention.minutes=1440 \
+          --override offsets.topic.compression.codec=0 \
+          --override offsets.topic.num.partitions=50 \
+          --override offsets.topic.replication.factor=3 \
+          --override offsets.topic.segment.bytes=104857600 \
+          --override queued.max.requests=500 \
+          --override quota.consumer.default=9223372036854775807 \
+          --override quota.producer.default=9223372036854775807 \
+          --override replica.fetch.min.bytes=1 \
+          --override replica.fetch.wait.max.ms=500 \
+          --override replica.high.watermark.checkpoint.interval.ms=5000 \
+          --override replica.lag.time.max.ms=10000 \
+          --override replica.socket.receive.buffer.bytes=65536 \
+          --override replica.socket.timeout.ms=30000 \
+          --override request.timeout.ms=30000 \
+          --override socket.receive.buffer.bytes=102400 \
+          --override socket.request.max.bytes=104857600 \
+          --override socket.send.buffer.bytes=102400 \
+          --override unclean.leader.election.enable=true \
+          --override zookeeper.session.timeout.ms=6000 \
+          --override zookeeper.set.acl=false \
+          --override broker.id.generation.enable=true \
+          --override connections.max.idle.ms=600000 \
+          --override controlled.shutdown.enable=true \
+          --override controlled.shutdown.max.retries=3 \
+          --override controlled.shutdown.retry.backoff.ms=5000 \
+          --override controller.socket.timeout.ms=30000 \
+          --override default.replication.factor=1 \
+          --override fetch.purgatory.purge.interval.requests=1000 \
+          --override group.max.session.timeout.ms=300000 \
+          --override group.min.session.timeout.ms=6000 \
+          --override inter.broker.protocol.version=0.10.2-IV0 \
+          --override log.cleaner.backoff.ms=15000 \
+          --override log.cleaner.dedupe.buffer.size=134217728 \
+          --override log.cleaner.delete.retention.ms=86400000 \
+          --override log.cleaner.enable=true \
+          --override log.cleaner.io.buffer.load.factor=0.9 \
+          --override log.cleaner.io.buffer.size=524288 \
+          --override log.cleaner.io.max.bytes.per.second=1.7976931348623157E308 \
+          --override log.cleaner.min.cleanable.ratio=0.5 \
+          --override log.cleaner.min.compaction.lag.ms=0 \
+          --override log.cleaner.threads=1 \
+          --override log.cleanup.policy=delete \
+          --override log.index.interval.bytes=4096 \
+          --override log.index.size.max.bytes=10485760 \
+          --override log.message.timestamp.difference.max.ms=9223372036854775807 \
+          --override log.message.timestamp.type=CreateTime \
+          --override log.preallocate=false \
+          --override log.retention.check.interval.ms=300000 \
+          --override max.connections.per.ip=2147483647 \
+          --override num.partitions=1 \
+          --override producer.purgatory.purge.interval.requests=1000 \
+          --override replica.fetch.backoff.ms=1000 \
+          --override replica.fetch.max.bytes=1048576 \
+          --override replica.fetch.response.max.bytes=10485760 \
+          --override reserved.broker.max.id=1000 "
+        env:
+        - name: KAFKA_HEAP_OPTS
+          value : "-Xmx512M -Xms512M"
+        - name: KAFKA_OPTS
+          value: "-Dlogging.level=INFO"
+        - name: KAFKA_JMX_OPTS
+          value: "-Dcom.sun.management.jmxremote=true -Dcom.sun.management.jmxremote.port=19999 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.net.preferIPv4Stack=true"
+        volumeMounts:
+        - name: datadir
+          mountPath: /var/lib/kafka
+        readinessProbe:
+          exec:
+           command:
+            - sh
+            - -c
+            - "unset KAFKA_JMX_OPTS; /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server=localhost:9093"
+      - name: consumer-producer
+        image: openjdk:11.0.2-jre-slim
+        env:
+        - name: KAFKA_BROKERS
+          value: "localhost:9093"
+        command:
+          - java
+          - -jar
+          - -Dcom.sun.management.jmxremote=true 
+          - -Dcom.sun.management.jmxremote.port=9090 
+          - -Dcom.sun.management.jmxremote.authenticate=false 
+          - -Dcom.sun.management.jmxremote.ssl=false 
+          - -Djava.net.preferIPv4Stack=true"
+          - /target/kafka-1.0-SNAPSHOT-jar-with-dependencies.jar
+        volumeMounts:
+        - name: build-data
+          mountPath: /target
+      initContainers:
+      - name: build
+        image: maven:3-jdk-11
+        command: ['sh', '-c', 'cd /example; mvn package']
+        volumeMounts:
+        - name: build-data
+          mountPath: /target
+        - name: java-src
+          mountPath: /example/src/main/java/KafkaExample.java
+          subPath: KafkaExample.java
+        - name: pom-xml
+          mountPath: /example/pom.xml
+          subPath: pom.xml
+      volumes:
+      - name: build-data
+        emptyDir: {}
+      - name: java-src
+        configMap:
+          name: kafka-consumer-producer-example
+          items:
+          - key: KafkaExample.java
+            path: KafkaExample.java
+      - name: pom-xml
+        configMap:
+          name: kafka-consumer-producer-example
+          items:
+          - key: pom.xml
+            path: pom.xml
+  volumeClaimTemplates:
+  - metadata:
+      name: datadir
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-consumer-producer-example
+  namespace: default
+data:
+  pom.xml: |
+    <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+      <modelVersion>4.0.0</modelVersion>
+      <groupId>kafka.example</groupId>
+      <artifactId>kafka</artifactId>
+      <version>1.0-SNAPSHOT</version>
+      <dependencies>
+        <dependency>
+          <groupId>org.apache.kafka</groupId>
+          <artifactId>kafka-clients</artifactId>
+          <version>1.0.0</version>
+        </dependency>
+      </dependencies>
+      <build>
+        <directory>/target</directory>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-compiler-plugin</artifactId>
+            <version>3.1</version>
+            <configuration>
+              <source>1.8</source>
+              <target>1.8</target>
+            </configuration>
+          </plugin>
+          <plugin>
+            <artifactId>maven-assembly-plugin</artifactId>
+            <configuration>
+              <archive>
+                <manifest>
+                  <mainClass>KafkaExample</mainClass>
+                </manifest>
+              </archive>
+              <descriptorRefs>
+                <descriptorRef>jar-with-dependencies</descriptorRef>
+              </descriptorRefs>
+            </configuration>
+            <executions>
+              <execution>
+                <id>make-assembly</id>
+                <phase>package</phase>
+                <goals>
+                  <goal>single</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-jar-plugin</artifactId>
+            <version>3.0.2</version>
+            <configuration>
+              <archive>
+                <manifest>
+                  <mainClass>KafkaExample</mainClass>
+                  <addClasspath>true</addClasspath>
+                </manifest>
+              </archive>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>  
+    </project>
+  KafkaExample.java: |
+    import org.apache.kafka.clients.consumer.ConsumerRecord;
+    import org.apache.kafka.clients.consumer.ConsumerRecords;
+    import org.apache.kafka.clients.consumer.KafkaConsumer;
+    import org.apache.kafka.clients.producer.KafkaProducer;
+    import org.apache.kafka.clients.producer.Producer;
+    import org.apache.kafka.clients.producer.ProducerRecord;
+    import org.apache.kafka.common.serialization.StringSerializer;
+    import org.apache.kafka.common.serialization.StringDeserializer;
+
+    import java.util.Arrays;
+    import java.util.Date;
+    import java.util.Properties;
+
+    public class KafkaExample {
+        private final String topic;
+        private final Properties props;
+
+        public KafkaExample(String brokers) {
+            this.topic = "mytopic";
+            String serializer = StringSerializer.class.getName();
+            String deserializer = StringDeserializer.class.getName();
+            props = new Properties();
+            props.put("bootstrap.servers", brokers);
+            props.put("group.id", "myconsumer");
+            props.put("client.id", "myclient");
+            props.put("enable.auto.commit", "true");
+            props.put("auto.commit.interval.ms", "1000");
+            props.put("auto.offset.reset", "earliest");
+            props.put("session.timeout.ms", "30000");
+            props.put("key.deserializer", deserializer);
+            props.put("value.deserializer", deserializer);
+            props.put("key.serializer", serializer);
+            props.put("value.serializer", serializer);
+        }
+
+        public void consume() {
+            KafkaConsumer<String, String> consumer = new KafkaConsumer<>(props);
+            consumer.subscribe(Arrays.asList(topic));
+            while (true) {
+                ConsumerRecords<String, String> records = consumer.poll(1000);
+                for (ConsumerRecord<String, String> record : records) {
+                    System.out.printf("%s [%d] offset=%d, key=%s, value=\"%s\"\n",
+                      record.topic(), record.partition(),
+                      record.offset(), record.key(), record.value());
+                }
+            }
+        }
+
+        public void produce() {
+            Thread one = new Thread() {
+                public void run() {
+                    try {
+                        Producer<String, String> producer = new KafkaProducer<>(props);
+                        int i = 0;
+                        while(true) {
+                            Date d = new Date();
+                            producer.send(new ProducerRecord<>(topic, Integer.toString(i), d.toString()));
+                            Thread.sleep(1000);
+                            i++;
+                        }
+                    } catch (InterruptedException v) {
+                        System.out.println(v);
+                    }
+                }
+            };
+            one.start();
+        }
+
+        public static void main(String[] args) {
+            String brokers = System.getenv("KAFKA_BROKERS");
+            KafkaExample c = new KafkaExample(brokers);
+            c.produce();
+            c.consume();
+        }
+    }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zk-hs
+  labels:
+    app: zk
+spec:
+  ports:
+  - port: 2888
+    name: server
+  - port: 3888
+    name: leader-election
+  clusterIP: None
+  selector:
+    app: zk
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zk-cs
+  labels:
+    app: zk
+spec:
+  ports:
+  - port: 2181
+    name: client
+  selector:
+    app: zk
+---
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  name: zk
+spec:
+  serviceName: zk-hs
+  replicas: 3
+  updateStrategy:
+    type: RollingUpdate
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: zk
+    spec:
+      containers:
+      - name: kubernetes-zookeeper
+        imagePullPolicy: Always
+        image: "gcr.io/google_containers/kubernetes-zookeeper:1.0-3.4.10"
+        ports:
+        - containerPort: 2181
+          name: client
+        - containerPort: 2888
+          name: server
+        - containerPort: 3888
+          name: leader-election
+        command:
+        - sh
+        - -c
+        - "start-zookeeper \
+          --servers=3 \
+          --data_dir=/var/lib/zookeeper/data \
+          --data_log_dir=/var/lib/zookeeper/data/log \
+          --conf_dir=/opt/zookeeper/conf \
+          --client_port=2181 \
+          --election_port=3888 \
+          --server_port=2888 \
+          --tick_time=2000 \
+          --init_limit=10 \
+          --sync_limit=5 \
+          --heap=512M \
+          --max_client_cnxns=60 \
+          --snap_retain_count=3 \
+          --purge_interval=12 \
+          --max_session_timeout=40000 \
+          --min_session_timeout=4000 \
+          --log_level=INFO"
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - "zookeeper-ready 2181"
+          initialDelaySeconds: 10
+          timeoutSeconds: 5
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - "zookeeper-ready 2181"
+          initialDelaySeconds: 10
+          timeoutSeconds: 5
+        volumeMounts:
+        - name: datadir
+          mountPath: /var/lib/zookeeper
+  volumeClaimTemplates:
+  - metadata:
+      name: datadir
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-newrelic-integrations-config
+  namespace: default
+data:
+  config.yaml: |
+    integration_name: com.newrelic.kafka
+    instances:
+      - name: kafka-metrics
+        command: metrics
+        arguments:
+          zookeeper_hosts: '[{"host": "zk-0.zk-hs", "port": 2181}, {"host": "zk-1.zk-hs", "port": 2181}, {"host": "zk-2.zk-hs", "port": 2181}]'
+          producers: '[{"name": "myclient", "host": "localhost", "port": 9090}]'
+          consumers: '[{"name": "myclient", "host": "localhost", "port": 9090}]'
+          default_jmx_host: "localhost"
+          default_jmx_port: 19999
+          collect_broker_topic_data: true
+          topic_mode: all
+          collect_topic_size: true
+        labels:
+          env: production
+          role: kafka
+      - name: kafka-inventory
+        command: inventory
+        arguments:
+          zookeeper_hosts: '[{"host": "zk-0.zk-hs", "port": 2181}, {"host": "zk-1.zk-hs", "port": 2181}, {"host": "zk-2.zk-hs", "port": 2181}]'
+          topic_mode: all
+        labels:
+          env: production
+          role: kafka
+      - name: kafka-consumer-offsets
+        command: consumer_offset
+        arguments:
+          zookeeper_hosts: '[{"host": "zk-0.zk-hs", "port": 2181}, {"host": "zk-1.zk-hs", "port": 2181}, {"host": "zk-2.zk-hs", "port": 2181}]'
+          consumer_groups: '{"myconsumer":{"mytopic":[0]}}'
+        labels:
+          env: production
+          role: kafka
+  definition.yaml: |
+    name: com.newrelic.kafka
+    description: Reports status and metrics for Kafka services
+    protocol_version: 2
+    os: linux
+    commands:
+      metrics:
+        command:
+          - ./bin/nr-kafka
+          - --metrics
+        interval: 15
+      inventory:
+        command:
+          - ./bin/nr-kafka
+          - --inventory
+        prefix: config/kafka
+        interval: 15
+      consumer_offset:
+        command:
+          - ./bin/nr-kafka
+          - --consumer_offset
+          - --inventory=false
+          - --metrics=false
+        prefix: config/kafka
+        interval: 15
