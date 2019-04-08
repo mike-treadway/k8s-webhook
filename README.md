@@ -95,6 +95,9 @@ Either certificate management choice made, the important thing is to have the se
 
 ### 3) Install the injection
 
+Edit `deploy/newrelic-webhook.yaml` to configure the variables `clusterName` and `NRIA_LICENSE_KEY`.
+
+Then execute the following command:
 ```bash
 $ kubectl apply -f deploy/newrelic-webhook.yaml
 ```
