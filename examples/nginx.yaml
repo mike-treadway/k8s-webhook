@@ -78,6 +78,7 @@ data:
           command: metrics
           arguments:
               status_url: http://127.0.0.1/status
+              remote_monitoring: true
           labels:
               env: production
               role: load_balancer
@@ -85,6 +86,7 @@ data:
           command: inventory
           arguments:
               config_path: /etc/nginx/nginx.conf
+              remote_monitoring: true
           labels:
               env: production
               role: load_balancer
@@ -105,4 +107,3 @@ data:
               - -inventory
             prefix: config/nginx
             interval: 60
-

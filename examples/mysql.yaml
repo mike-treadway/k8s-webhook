@@ -51,6 +51,7 @@ data:
           port: 3306
           username: root
           password: $MYSQL_ROOT_PASSWORD
+          remote_monitoring: true
         labels:
           env: testenv
           role: write-replica
