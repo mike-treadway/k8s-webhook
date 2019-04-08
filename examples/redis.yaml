@@ -35,6 +35,7 @@ data:
         arguments:
           hostname: localhost
           port: 6379
+          remote_monitoring: true
         labels:
           environment: production
       - name: redis-inventory
@@ -42,6 +43,7 @@ data:
         arguments:
           hostname: localhost
           port: 6379
+          remote_monitoring: true
         labels:
           environment: production
   definition.yaml: |
