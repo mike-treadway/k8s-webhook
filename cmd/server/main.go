@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
@@ -25,12 +24,12 @@ import (
 )
 
 const (
-	appName        = "new-relic-k8s-webhook"
+	envVarPrefix   = "NEW_RELIC_K8S_WEBHOOK"
 	defaultTimeout = time.Second * 30
 )
 
-// specification contains the specs for this app.
-type specification struct {
+// envVarSpec contains arguments specification for the env-vars extraction.
+type envVarSpec struct {
 	Port        int           `default:"443"`                                                      // Webhook server port.
 	TLSCertFile string        `default:"/etc/tls-key-cert-pair/tls.crt" envconfig:"tls_cert_file"` // File containing the x509 Certificate for HTTPS.
 	TLSKeyFile  string        `default:"/etc/tls-key-cert-pair/tls.key" envconfig:"tls_key_file"`  // File containing the x509 private key for TLSCERTFILE.
@@ -39,8 +38,8 @@ type specification struct {
 }
 
 func main() {
-	var s specification
-	err := envconfig.Process(strings.Replace(appName, "-", "_", -1), &s)
+	var s envVarSpec
+	err := envconfig.Process(envVarPrefix, &s)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
