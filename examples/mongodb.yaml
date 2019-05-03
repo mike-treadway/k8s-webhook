@@ -405,7 +405,7 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: mongodb-cfg-newrelic-integrations-config
+  name: mongodb-newrelic-integrations-config
   namespace: default
 data:
   config.yaml: |
