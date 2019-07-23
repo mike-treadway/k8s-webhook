@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memcached-deployment
+  labels:
+    app: memcached
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: memcached
+  template:
+    metadata:
+      annotations:
+        newrelic.com/integrations-sidecar-configmap: "memcached-newrelic-integrations-config"
+        newrelic.com/integrations-sidecar-imagename: "newrelic/k8s-nri-memcached"
+      labels:
+        app: memcached
+    spec:
+      containers:
+      - name: memcached
+        image: memcached:1.5-alpine
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: memcached-newrelic-integrations-config
+  namespace: default
+data:
+  config.yaml: |
+    integration_name: com.newrelic.memcached
+
+    instances:
+      - name: memcached
+        command: all_data
+        arguments:
+          host: 127.0.0.1
+          port: 11211
+
+  definition.yaml: |
+    name: com.newrelic.memcached
+    description: Reports status and metrics for memcached service
+    protocol_version: 2
+    os: linux
+
+    commands:
+      all_data:
+        command:
+          - ./bin/nr-memcached
+        prefix: config/memcached
+        interval: 15
+      metrics:
+        command:
+          - ./bin/nr-memcached
+          - --metrics
+        interval: 15
+      inventory:
+        command:
+          - ./bin/nr-memcached
+          - --inventory
+        prefix: config/memcached
+        interval: 15
+
