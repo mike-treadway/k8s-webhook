@@ -18,6 +18,8 @@ spec:
       - name: newrelic-webhook-injector
         image: newrelic/k8s-webhook:latest
         env:
+      #  - name: NEW_RELIC_K8S_WEBHOOK_IGNORE_NAMESPACES
+      #    value: "kube-system,kube-public"
         - name: clusterName
           value: "<YOUR_CLUSTER_NAME>"
         - name: NRIA_LICENSE_KEY
