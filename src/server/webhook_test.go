@@ -23,6 +23,8 @@ import (
 )
 
 const (
+	clusterName       = "foobar"
+	configName        = "my-config"
 	integrationConfig = `integration_name: com.newrelic.nginx
 instances:
   - name: nginx-server-metrics
@@ -49,7 +51,6 @@ func TestServeHTTP(t *testing.T) {
 	expectedEnvVarsPatchForValidBody := loadTestData(t, "expectedEnvVarsAdmissionReviewPatch.json")
 	expectedSidecarPatchForValidBody := loadTestData(t, "expectedSidecarAdmissionReviewPatch.json")
 	missingObjectRequestBody := bytes.Replace(makeTestData(t, "default", map[string]string{}), []byte("\"object\""), []byte("\"foo\""), -1)
-	configName := "my-config"
 
 	patchTypeForValidBody := v1beta1.PatchTypeJSONPatch
 	cases := []struct {
@@ -141,7 +142,6 @@ func TestServeHTTP(t *testing.T) {
 		},
 	}
 
-	clusterName := "foobar"
 	whsvr := &Webhook{
 		ClusterName: clusterName,
 		Server:      &http.Server{},
@@ -181,7 +181,6 @@ func TestServeHTTP(t *testing.T) {
 
 func TestServeHTTPIgnoreNamespaces(t *testing.T) {
 	expectedEnvVarsPatchForValidBody := loadTestData(t, "expectedEnvVarsAdmissionReviewPatch.json")
-	configName := "my-config"
 
 	patchTypeForValidBody := v1beta1.PatchTypeJSONPatch
 	cases := []struct {
@@ -239,7 +238,6 @@ func TestServeHTTPIgnoreNamespaces(t *testing.T) {
 		},
 	}
 
-	clusterName := "foobar"
 	whsvr := &Webhook{
 		ClusterName: clusterName,
 		Server:      &http.Server{},
@@ -279,7 +277,6 @@ func TestServeHTTPIgnoreNamespaces(t *testing.T) {
 func Benchmark_EnvVarWebhookPerformance(b *testing.B) {
 	body := makeTestData(b, "default", map[string]string{})
 
-	clusterName := "foobar"
 	whsvr := &Webhook{
 		ClusterName: clusterName,
 		Server: &http.Server{
@@ -301,7 +298,6 @@ func Benchmark_EnvVarWebhookPerformance(b *testing.B) {
 
 func Benchmark_SidecarWebhookPerformance(b *testing.B) {
 	namespace := "default"
-	configName := "my-config"
 	body := makeTestData(b, namespace, map[string]string{"newrelic.com/integrations-sidecar-configmap": configName})
 	clusterName := "mycluster"
 	whsvr := &Webhook{
