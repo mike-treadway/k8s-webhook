@@ -19,6 +19,9 @@ const (
 	annotationIntegrationImage     = "newrelic.com/integrations-sidecar-imagename"
 	annotationStatusKey            = "newrelic.com/integrations-sidecar-injector-status"
 	integrationConfigVolumeName    = "integration-config"
+	tmpfsDataVolumeName            = "tmpfs-data"
+	tmpfsUserDataVolumeName        = "tmpfs-user-data"
+	tmpfsTmpVolumeName             = "tmpfs-tmp"
 	defaultIntegrationImage        = "sidecar-image"
 	configKey                      = "config.yaml"
 	definitionKey                  = "definition.yaml"
@@ -44,6 +47,14 @@ type configMapRetriever interface {
 	ConfigMap(namespace, name string) (*corev1.ConfigMap, error)
 }
 
+func boolPointer(b bool) *bool {
+	return &b
+}
+
+func int64Pointer(i int64) *int64 {
+	return &i
+}
+
 // NewSidecarMutator - create new sidecar mutator instance
 func NewSidecarMutator(clusterName string, cfgMapRtrv configMapRetriever) *SidecarMutator {
 	sm := &SidecarMutator{
@@ -52,6 +63,13 @@ func NewSidecarMutator(clusterName string, cfgMapRtrv configMapRetriever) *Sidec
 			Name:            "newrelic-sidecar",
 			ImagePullPolicy: corev1.PullIfNotPresent,
 			Image:           defaultIntegrationImage,
+			SecurityContext: &corev1.SecurityContext{
+				AllowPrivilegeEscalation: boolPointer(false),
+				Privileged:               boolPointer(false),
+				RunAsNonRoot:             boolPointer(true),
+				ReadOnlyRootFilesystem:   boolPointer(false),
+				RunAsUser:                int64Pointer(1000),
+			},
 		},
 		envGenerator: &metadataEnvGenerator{
 			clusterName: clusterName,
@@ -296,6 +314,15 @@ func (sm *SidecarMutator) createSidecar(pod *corev1.Pod) ([]corev1.Container, []
 				},
 			},
 		},
+		{
+			Name: tmpfsDataVolumeName,
+		},
+		{
+			Name: tmpfsUserDataVolumeName,
+		},
+		{
+			Name: tmpfsTmpVolumeName,
+		},
 	}
 	containerDef.VolumeMounts = []corev1.VolumeMount{
 		{
@@ -307,6 +334,18 @@ func (sm *SidecarMutator) createSidecar(pod *corev1.Pod) ([]corev1.Container, []
 			Name:      integrationConfigVolumeName,
 			MountPath: "/var/db/newrelic-infra/newrelic-integrations/definition.yaml",
 			SubPath:   definitionKey,
+		},
+		{
+			Name:      tmpfsDataVolumeName,
+			MountPath: "/var/db/newrelic-infra/data",
+		},
+		{
+			Name:      tmpfsUserDataVolumeName,
+			MountPath: "/var/db/newrelic-infra/user_data",
+		},
+		{
+			Name:      tmpfsTmpVolumeName,
+			MountPath: "/tmp",
 		},
 	}
 

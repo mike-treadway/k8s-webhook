@@ -21,4 +21,6 @@ RUN apk add --update openssl
 COPY entrypoint.sh /app
 COPY --from=build /app/bin/k8s-webhook /app
 
+USER 1000
+
 CMD ["/app/entrypoint.sh"]
