@@ -209,9 +209,28 @@
                     "name": "integration-config",
                     "mountPath": "/var/db/newrelic-infra/newrelic-integrations/definition.yaml",
                     "subPath": "definition.yaml"
+                },
+                {
+                    "name": "tmpfs-data",
+                    "mountPath": "/var/db/newrelic-infra/data"
+                },
+                {
+                    "name": "tmpfs-user-data",
+                    "mountPath": "/var/db/newrelic-infra/user_data"
+                },
+                {
+                    "name": "tmpfs-tmp",
+                    "mountPath": "/tmp"
                 }
             ],
-            "imagePullPolicy": "IfNotPresent"
+            "imagePullPolicy": "IfNotPresent",
+            "securityContext": {
+                "privileged": false,
+                "runAsUser": 1000,
+                "runAsNonRoot": true,
+                "readOnlyRootFilesystem": false,
+                "allowPrivilegeEscalation": false
+            }
         }
     },
     {
@@ -222,6 +241,27 @@
             "configMap": {
                 "name": "my-config"
             }
+        }
+    },
+    {
+        "op": "add",
+        "path": "/spec/volumes/-",
+        "value": {
+            "name": "tmpfs-data"
+        }
+    },
+    {
+        "op": "add",
+        "path": "/spec/volumes/-",
+        "value": {
+            "name": "tmpfs-user-data"
+        }
+    },
+    {
+        "op": "add",
+        "path": "/spec/volumes/-",
+        "value": {
+            "name": "tmpfs-tmp"
         }
     },
     {
