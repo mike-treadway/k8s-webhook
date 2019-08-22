@@ -28,11 +28,6 @@ var (
 	deserializer  = codecs.UniversalDeserializer()
 )
 
-var ignoredNamespaces = []string{
-	metav1.NamespaceSystem,
-	metav1.NamespacePublic,
-}
-
 // PatchOperation defines a patch to a k8s api resource
 type PatchOperation struct {
 	Op    string      `json:"op"`
@@ -47,14 +42,15 @@ type podMutator interface {
 // Webhook is a webhook server that can accept requests from the Apiserver
 type Webhook struct {
 	sync.RWMutex
-	CertFile    string
-	KeyFile     string
-	Cert        *tls.Certificate
-	ClusterName string
-	Logger      *zap.SugaredLogger
-	Server      *http.Server
-	CertWatcher *fsnotify.Watcher
-	Mutators    []podMutator
+	CertFile         string
+	KeyFile          string
+	Cert             *tls.Certificate
+	ClusterName      string
+	Logger           *zap.SugaredLogger
+	Server           *http.Server
+	CertWatcher      *fsnotify.Watcher
+	Mutators         []podMutator
+	IgnoreNamespaces []string
 }
 
 // GetCert returns the certificate that should be used by the server in the TLS handshake.
@@ -154,7 +150,7 @@ func (whsvr *Webhook) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		req.Name, "pod", pod.Name, "UID", req.UID, "operation", req.Operation, "userinfo", req.UserInfo)
 
 	// determine whether to perform mutation
-	if !mutationRequired(ignoredNamespaces, &pod.ObjectMeta) {
+	if !mutationRequired(whsvr.IgnoreNamespaces, &pod.ObjectMeta) {
 		whsvr.Logger.Infow("skipped mutation", "namespace", pod.Namespace, "pod", pod.Name, "reason", "policy check (special namespaces)")
 	} else {
 		var patches []PatchOperation

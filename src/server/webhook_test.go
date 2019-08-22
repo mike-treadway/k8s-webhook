@@ -23,6 +23,8 @@ import (
 )
 
 const (
+	clusterName       = "foobar"
+	configName        = "my-config"
 	integrationConfig = `integration_name: com.newrelic.nginx
 instances:
   - name: nginx-server-metrics
@@ -49,7 +51,6 @@ func TestServeHTTP(t *testing.T) {
 	expectedEnvVarsPatchForValidBody := loadTestData(t, "expectedEnvVarsAdmissionReviewPatch.json")
 	expectedSidecarPatchForValidBody := loadTestData(t, "expectedSidecarAdmissionReviewPatch.json")
 	missingObjectRequestBody := bytes.Replace(makeTestData(t, "default", map[string]string{}), []byte("\"object\""), []byte("\"foo\""), -1)
-	configName := "my-config"
 
 	patchTypeForValidBody := v1beta1.PatchTypeJSONPatch
 	cases := []struct {
@@ -141,7 +142,6 @@ func TestServeHTTP(t *testing.T) {
 		},
 	}
 
-	clusterName := "foobar"
 	whsvr := &Webhook{
 		ClusterName: clusterName,
 		Server:      &http.Server{},
@@ -149,6 +149,7 @@ func TestServeHTTP(t *testing.T) {
 			NewEnvVarMutator(clusterName),
 			NewSidecarMutator(clusterName, makeConfigMapRetriever("default", configName, map[string]string{"config.yaml": integrationConfig})),
 		},
+		IgnoreNamespaces: []string{metav1.NamespaceSystem, metav1.NamespacePublic},
 	}
 
 	server := httptest.NewServer(whsvr)
@@ -178,10 +179,104 @@ func TestServeHTTP(t *testing.T) {
 
 }
 
+func TestServeHTTPIgnoreNamespaces(t *testing.T) {
+	expectedEnvVarsPatchForValidBody := loadTestData(t, "expectedEnvVarsAdmissionReviewPatch.json")
+
+	patchTypeForValidBody := v1beta1.PatchTypeJSONPatch
+	cases := []struct {
+		name                      string
+		requestBody               []byte
+		contentType               string
+		expectedStatusCode        int
+		expectedBodyWhenHTTPError string
+		expectedAdmissionReview   v1beta1.AdmissionReview
+	}{
+		{
+			name:               "mutation applied - namespace kube-system",
+			requestBody:        makeTestData(t, "kube-system", nil),
+			contentType:        "application/json",
+			expectedStatusCode: http.StatusOK,
+			expectedAdmissionReview: v1beta1.AdmissionReview{
+				Response: &v1beta1.AdmissionResponse{
+					UID:       types.UID(1),
+					Allowed:   true,
+					Result:    nil,
+					Patch:     expectedEnvVarsPatchForValidBody,
+					PatchType: &patchTypeForValidBody,
+				},
+			},
+		},
+		{
+			name:               "mutation applied - namespace kube-public",
+			requestBody:        makeTestData(t, "kube-public", nil),
+			contentType:        "application/json",
+			expectedStatusCode: http.StatusOK,
+			expectedAdmissionReview: v1beta1.AdmissionReview{
+				Response: &v1beta1.AdmissionResponse{
+					UID:       types.UID(1),
+					Allowed:   true,
+					Result:    nil,
+					Patch:     expectedEnvVarsPatchForValidBody,
+					PatchType: &patchTypeForValidBody,
+				},
+			},
+		},
+		{
+			name:               "mutation not applied - namespace testing ignored",
+			requestBody:        makeTestData(t, "testing", nil),
+			contentType:        "application/json",
+			expectedStatusCode: http.StatusOK,
+			expectedAdmissionReview: v1beta1.AdmissionReview{
+				Response: &v1beta1.AdmissionResponse{
+					UID:       types.UID(1),
+					Allowed:   true,
+					Result:    nil,
+					Patch:     nil,
+					PatchType: nil,
+				},
+			},
+		},
+	}
+
+	whsvr := &Webhook{
+		ClusterName: clusterName,
+		Server:      &http.Server{},
+		Mutators: []podMutator{
+			NewEnvVarMutator(clusterName),
+			NewSidecarMutator(clusterName, makeConfigMapRetriever("default", configName, map[string]string{"config.yaml": integrationConfig})),
+		},
+		IgnoreNamespaces: []string{"testing"},
+	}
+
+	server := httptest.NewServer(whsvr)
+	defer server.Close()
+
+	for i, c := range cases {
+		t.Run(fmt.Sprintf("[%d] %s", i, c.name), func(t *testing.T) {
+
+			fmt.Println(c.name)
+			resp, err := http.Post(server.URL, c.contentType, bytes.NewReader(c.requestBody))
+			assert.NoError(t, err)
+			assert.Equal(t, c.expectedStatusCode, resp.StatusCode)
+
+			gotBody, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatalf("could not read body: %v", err)
+			}
+			var gotReview v1beta1.AdmissionReview
+			if err := json.Unmarshal(gotBody, &gotReview); err != nil {
+				assert.Equal(t, c.expectedBodyWhenHTTPError, string(gotBody))
+				return
+			}
+
+			assert.Equal(t, c.expectedAdmissionReview, gotReview)
+		})
+	}
+}
+
 func Benchmark_EnvVarWebhookPerformance(b *testing.B) {
 	body := makeTestData(b, "default", map[string]string{})
 
-	clusterName := "foobar"
 	whsvr := &Webhook{
 		ClusterName: clusterName,
 		Server: &http.Server{
@@ -203,7 +298,6 @@ func Benchmark_EnvVarWebhookPerformance(b *testing.B) {
 
 func Benchmark_SidecarWebhookPerformance(b *testing.B) {
 	namespace := "default"
-	configName := "my-config"
 	body := makeTestData(b, namespace, map[string]string{"newrelic.com/integrations-sidecar-configmap": configName})
 	clusterName := "mycluster"
 	whsvr := &Webhook{
