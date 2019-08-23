@@ -26,6 +26,7 @@ const (
 	configKey                      = "config.yaml"
 	definitionKey                  = "definition.yaml"
 	injected                       = "injected"
+	defaultAgentDirPath            = "/nri-sidecar/newrelic-infra"
 	maxLabelsCount                 = 50
 )
 
@@ -260,6 +261,7 @@ func (sm *SidecarMutator) addEnvVars(pod *corev1.Pod, sidecar *corev1.Container,
 		sidecar.Env = append(sidecar.Env, createEnvVarFromString("NRIA_PASSTHROUGH_ENVIRONMENT", strings.Join(envs, ",")))
 	}
 
+	sidecar.Env = append(sidecar.Env, createEnvVarFromString("NRIA_AGENT_DIR", defaultAgentDirPath))
 }
 
 type integrationCfg struct {
@@ -327,21 +329,21 @@ func (sm *SidecarMutator) createSidecar(pod *corev1.Pod) ([]corev1.Container, []
 	containerDef.VolumeMounts = []corev1.VolumeMount{
 		{
 			Name:      integrationConfigVolumeName,
-			MountPath: "/var/db/newrelic-infra/integrations.d/integration.yaml",
+			MountPath: defaultAgentDirPath + "/integrations.d/integration.yaml",
 			SubPath:   configKey,
 		},
 		{
 			Name:      integrationConfigVolumeName,
-			MountPath: "/var/db/newrelic-infra/newrelic-integrations/definition.yaml",
+			MountPath: defaultAgentDirPath + "/newrelic-integrations/definition.yaml",
 			SubPath:   definitionKey,
 		},
 		{
 			Name:      tmpfsDataVolumeName,
-			MountPath: "/var/db/newrelic-infra/data",
+			MountPath: defaultAgentDirPath + "/data",
 		},
 		{
 			Name:      tmpfsUserDataVolumeName,
-			MountPath: "/var/db/newrelic-infra/user_data",
+			MountPath: defaultAgentDirPath + "/user_data",
 		},
 		{
 			Name:      tmpfsTmpVolumeName,
@@ -355,7 +357,7 @@ func (sm *SidecarMutator) createSidecar(pod *corev1.Pod) ([]corev1.Container, []
 			if k != configKey && k != definitionKey {
 				vol := corev1.VolumeMount{
 					Name:      integrationConfigVolumeName,
-					MountPath: "/var/db/newrelic-infra/user_data/" + k,
+					MountPath: defaultAgentDirPath + "/user_data/" + k,
 					SubPath:   k,
 				}
 				containerDef.VolumeMounts = append(containerDef.VolumeMounts, vol)

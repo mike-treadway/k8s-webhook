@@ -15,7 +15,7 @@ spec:
         app: dummy
       annotations:
         newrelic.com/integrations-sidecar-configmap: my-config
-        newrelic.com/integrations-sidecar-imagename: nginx
+        newrelic.com/integrations-sidecar-imagename: newrelic/k8s-nri-nginx
     spec:
       containers:
       - name: busybox
