@@ -199,28 +199,28 @@
                 },
                 {
                     "name": "NRIA_AGENT_DIR",
-                    "value": "/nri-sidecar/var/db/newrelic-infra"
+                    "value": "/nri-sidecar/newrelic-infra"
                 }
             ],
             "resources": {},
             "volumeMounts": [
                 {
                     "name": "integration-config",
-                    "mountPath": "/nri-sidecar/var/db/newrelic-infra/integrations.d/integration.yaml",
+                    "mountPath": "/nri-sidecar/newrelic-infra/integrations.d/integration.yaml",
                     "subPath": "config.yaml"
                 },
                 {
                     "name": "integration-config",
-                    "mountPath": "/nri-sidecar/var/db/newrelic-infra/newrelic-integrations/definition.yaml",
+                    "mountPath": "/nri-sidecar/newrelic-infra/newrelic-integrations/definition.yaml",
                     "subPath": "definition.yaml"
                 },
                 {
                     "name": "tmpfs-data",
-                    "mountPath": "/nri-sidecar/var/db/newrelic-infra/data"
+                    "mountPath": "/nri-sidecar/newrelic-infra/data"
                 },
                 {
                     "name": "tmpfs-user-data",
-                    "mountPath": "/nri-sidecar/var/db/newrelic-infra/user_data"
+                    "mountPath": "/nri-sidecar/newrelic-infra/user_data"
                 },
                 {
                     "name": "tmpfs-tmp",

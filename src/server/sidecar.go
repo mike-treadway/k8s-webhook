@@ -26,7 +26,7 @@ const (
 	configKey                      = "config.yaml"
 	definitionKey                  = "definition.yaml"
 	injected                       = "injected"
-	defaultAgentDirPath            = "/nri-sidecar/var/db/newrelic-infra"
+	defaultAgentDirPath            = "/nri-sidecar/newrelic-infra"
 	maxLabelsCount                 = 50
 )
 

@@ -121,7 +121,7 @@ A sidecar will be injected into all pods having the `newrelic.com/integrations-s
 The `newrelic.com/integrations-sidecar-imagename` annotation is used to specify the sidecar image to be injected.
 
 The injector expects the config map to have a `config.yaml` file and an optional `definition.yaml` file, which are the usual configurations for integrations.
-The two will be mounted to `/var/db/newrelic-infra/integrations.d/integration.yaml` and `/var/db/newrelic-infra/newrelic-integrations/definition.yaml` respectively
+The two will be mounted to `/nri-sidecar/newrelic-infra/integrations.d/integration.yaml` and `/nri-sidecar/newrelic-infra/newrelic-integrations/definition.yaml` respectively
 and overwrite any of these if already present in the sidecar image.
 
 Passwords and other secret information passed as arguments to the integrations can be suplied as an environment variable backed by a kubernetes secret. If the name
@@ -188,7 +188,7 @@ data:
     commands:
         status:
             command:
-                - /var/db/newrelic-infra/newrelic-integrations/bin/nr-mysql
+                - /nri-sidecar/newrelic-infra/newrelic-integrations/bin/nr-mysql
             prefix: config/mysql
             interval: 30
 ```

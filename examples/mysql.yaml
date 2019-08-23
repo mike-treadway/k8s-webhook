@@ -63,6 +63,6 @@ data:
     commands:
         status:
             command:
-                - /var/db/newrelic-infra/newrelic-integrations/bin/nr-mysql
+                - /nri-sidecar/newrelic-infra/newrelic-integrations/bin/nr-mysql
             prefix: config/mysql
             interval: 30
