@@ -95,7 +95,14 @@ Either certificate management choice made, the important thing is to have the se
 
 ### 3) Install the injection
 
-Edit `deploy/newrelic-webhook.yaml` to configure the variables `clusterName` and `NRIA_LICENSE_KEY`.
+If you choose to set the license key environment variable from a secret, execute the following command:
+```bash
+kubectl create secret generic newrelic-agent-secret --from-literal=nria-license-key='<NRIA_LICENSE_KEY>'
+```
+
+Otherwise, you can open `deploy/newrelic-webhook.yaml` and edit `NRIA_LICENSE_KEY` environment variable. Uncomment `#value: "<NRIA_LICENSE_KEY>"`, set your license key and comment/remove the `valueFrom` block.
+
+Edit `deploy/newrelic-webhook.yaml` to configure the variable `clusterName`
 
 Then execute the following command:
 ```bash
