@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
 
@@ -159,8 +160,14 @@ func (whsvr *Webhook) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		var patches []PatchOperation
 		for _, m := range whsvr.Mutators {
+		retryMutate:
 			p, err := m.Mutate(&pod)
 			if err != nil {
+				if cErr, ok := err.(*ConfigMapNotFoundErr); ok {
+					whsvr.Logger.Warnw("config map not found during mutation, retrying", "configmap", cErr.ConfigMapName())
+					time.Sleep(500 * time.Millisecond)
+					goto retryMutate
+				}
 				whsvr.Logger.Errorw("error during mutation", "err", err)
 				http.Error(w, fmt.Sprintf("error during mutation: %q", err.Error()), errorCode(err))
 				return
