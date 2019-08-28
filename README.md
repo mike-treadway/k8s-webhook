@@ -233,11 +233,11 @@ The New Relic sidecar will have defined by default values for CPU and memory res
 
 You should take those values into account when defining the auto scaling target threshold.
 
-`new_target = Floor(old_target * limit / (limit + sidecar_limit)]`
+`new_target = Floor(old_target * request / (request + sidecar_request)]`
 
 e.g.
 
-*  You have defined a container CPU limit of `1000m` and a pod `targetCPUUtilizationPercentage` of `90%`
+*  You have defined a container CPU request of `1000m` and a pod `targetCPUUtilizationPercentage` of `90%`
 You should adjust the `targetCPUUtilizationPercentage` to: Floor(90 * 1000 / 1100)) = `81%`
 
 ### Run
