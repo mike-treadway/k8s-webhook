@@ -83,10 +83,6 @@ func mutationRequired(ignoredList []string, metadata *metav1.ObjectMeta) bool {
 	return true
 }
 
-type code interface {
-	Code() int
-}
-
 func errorCode(err error) int {
 	if _, ok := err.(*ConfigMapNotFoundErr); ok {
 		return http.StatusBadRequest
