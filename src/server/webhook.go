@@ -23,6 +23,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 )
 
+const (
+	maxMutationRetries = 10
+)
+
 var (
 	runtimeScheme = runtime.NewScheme()
 	codecs        = serializer.NewCodecFactory(runtimeScheme)
@@ -159,14 +163,18 @@ func (whsvr *Webhook) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		whsvr.Logger.Infow("skipped mutation", "namespace", pod.Namespace, "pod", pod.Name, "reason", "policy check (special namespaces)")
 	} else {
 		var patches []PatchOperation
+		retries := 0
 		for _, m := range whsvr.Mutators {
 		retryMutate:
 			p, err := m.Mutate(&pod)
 			if err != nil {
-				if cErr, ok := err.(*ConfigMapNotFoundErr); ok {
-					whsvr.Logger.Warnw("config map not found during mutation, retrying", "configmap", cErr.ConfigMapName())
-					time.Sleep(500 * time.Millisecond)
-					goto retryMutate
+				if retries <= maxMutationRetries {
+					if cErr, ok := err.(*ConfigMapNotFoundErr); ok {
+						retries++
+						whsvr.Logger.Warnw("config map not found during mutation, retrying", "configmap", cErr.ConfigMapName())
+						time.Sleep(500 * time.Millisecond)
+						goto retryMutate
+					}
 				}
 				whsvr.Logger.Errorw("error during mutation", "err", err)
 				http.Error(w, fmt.Sprintf("error during mutation: %q", err.Error()), errorCode(err))
