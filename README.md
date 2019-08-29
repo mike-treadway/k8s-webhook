@@ -225,20 +225,18 @@ Currently for K8s libraries it uses version 1.13.1. Only couple of libraries are
 
 #### Configuring Horizontal Pod Autoscaler
 
-If you have defined a HPA for a pod that will be monitored with New Relic Infrastructure Agent, you will have to take into account the New Relic sidecar resources requests when defining the auto scaling threshold. This is because the resources requests are set on the container level while the auto scaling threshold is set on pod.
+If you have defined a HPA for a pod that will be monitored with New Relic Infrastructure Agent, you will have to take into account the New Relic sidecar resource request/limit when defining the auto scaling threshold. This is because the resource request/limit are set on the container level while the auto scaling threshold is set on pod. For more information read the [official documentation](https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/#resource-requests-and-limits-of-pod-and-container) for Resource requests and limits of Pod and Container.
 
-The New Relic sidecar will have defined by default values for CPU and memory resources requests:
+The New Relic sidecar will have defined by default values for CPU and memory resource request/limit:
  * `cpu: "100m"`
  * `memory: "64Mi"`
 
-You should take those values into account when defining the auto scaling target threshold.
-
-`new_target = Floor(old_target * request / (request + sidecar_request)]`
+We suggest to take those values into account when defining the auto scaling target threshold.
 
 e.g.
 
 *  You have defined a container CPU request of `1000m` and a pod `targetCPUUtilizationPercentage` of `90%`
-You should adjust the `targetCPUUtilizationPercentage` to: Floor(90 * 1000 / 1100)) = `81%`
+we suggest that you adjust the `targetCPUUtilizationPercentage` to: Floor(90 * 1000 / 1100)) = `81%`
 
 ### Run
 
