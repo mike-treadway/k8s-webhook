@@ -2,7 +2,6 @@ package server
 
 import (
 	"fmt"
-	"net/http"
 	"os"
 	"strings"
 
@@ -101,17 +100,19 @@ func NewSidecarMutator(clusterName string, cfgMapRtrv configMapRetriever) *Sidec
 	return sm
 }
 
-type mutateError struct {
-	message string
-	code    int
+// ConfigMapNotFoundErr config map was not found
+type ConfigMapNotFoundErr struct {
+	configMapName string
 }
 
-func (me mutateError) Error() string {
-	return me.message
+// Error returns the error message.
+func (e ConfigMapNotFoundErr) Error() string {
+	return "config map not found"
 }
 
-func (me mutateError) Code() int {
-	return me.code
+// ConfigMapName returns config map name.
+func (e ConfigMapNotFoundErr) ConfigMapName() string {
+	return e.configMapName
 }
 
 // (https://github.com/kubernetes/kubernetes/issues/57982)
@@ -293,9 +294,8 @@ func (sm *SidecarMutator) createSidecar(pod *corev1.Pod) ([]corev1.Container, []
 	cfgMap, err := sm.cfgMapRtrv.ConfigMap(pod.Namespace, configMapName)
 	if err != nil {
 		if k8s_errors.IsNotFound(err) {
-			return nil, nil, &mutateError{
-				message: fmt.Sprintf("config map: '%s', not found", configMapName),
-				code:    http.StatusBadRequest,
+			return nil, nil, &ConfigMapNotFoundErr{
+				configMapName: configMapName,
 			}
 		}
 		return nil, nil, errors.Wrapf(err, "error retrieving config map '%s'", configMapName)

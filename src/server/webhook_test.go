@@ -138,7 +138,7 @@ func TestServeHTTP(t *testing.T) {
 			requestBody:               makeTestData(t, "default", map[string]string{"newrelic.com/integrations-sidecar-configmap": "wrong"}),
 			contentType:               "application/json",
 			expectedStatusCode:        http.StatusBadRequest,
-			expectedBodyWhenHTTPError: fmt.Sprintf("error during mutation: \"config map: 'wrong', not found\"\n"),
+			expectedBodyWhenHTTPError: fmt.Sprintf("error during mutation: \"%s\"\n", ConfigMapNotFoundErr{}.Error()),
 		},
 	}
 

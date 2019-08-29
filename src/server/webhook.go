@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
 
@@ -20,6 +21,11 @@ import (
 	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+)
+
+const (
+	maxMutationRetries = 10
+	mutationRetryDelay = 500 * time.Millisecond
 )
 
 var (
@@ -82,8 +88,8 @@ type code interface {
 }
 
 func errorCode(err error) int {
-	if me, ok := err.(code); ok {
-		return me.Code()
+	if _, ok := err.(*ConfigMapNotFoundErr); ok {
+		return http.StatusBadRequest
 	}
 	return http.StatusInternalServerError
 }
@@ -154,9 +160,19 @@ func (whsvr *Webhook) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		whsvr.Logger.Infow("skipped mutation", "namespace", pod.Namespace, "pod", pod.Name, "reason", "policy check (special namespaces)")
 	} else {
 		var patches []PatchOperation
+		retries := 0
 		for _, m := range whsvr.Mutators {
+		retryMutate:
 			p, err := m.Mutate(&pod)
 			if err != nil {
+				if retries <= maxMutationRetries {
+					if cErr, ok := err.(*ConfigMapNotFoundErr); ok {
+						retries++
+						whsvr.Logger.Warnw("config map not found during mutation, retrying", "configmap", cErr.ConfigMapName())
+						time.Sleep(mutationRetryDelay)
+						goto retryMutate
+					}
+				}
 				whsvr.Logger.Errorw("error during mutation", "err", err)
 				http.Error(w, fmt.Sprintf("error during mutation: %q", err.Error()), errorCode(err))
 				return
