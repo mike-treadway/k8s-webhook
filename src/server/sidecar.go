@@ -11,6 +11,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -70,6 +71,16 @@ func NewSidecarMutator(clusterName string, cfgMapRtrv configMapRetriever) *Sidec
 				RunAsNonRoot:             boolPointer(true),
 				ReadOnlyRootFilesystem:   boolPointer(false),
 				RunAsUser:                int64Pointer(1000),
+			},
+			Resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceCPU: resource.MustParse("100m"),
+					corev1.ResourceMemory: resource.MustParse("64Mi"),
+				},
+				Limits: corev1.ResourceList{
+					corev1.ResourceCPU: resource.MustParse("100m"),
+					corev1.ResourceMemory: resource.MustParse("64Mi"),
+				},
 			},
 		},
 		envGenerator: &metadataEnvGenerator{

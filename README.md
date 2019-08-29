@@ -223,6 +223,21 @@ Currently for K8s libraries it uses version 1.13.1. Only couple of libraries are
 * Edit the file and set the following value as container image: `internal/newrelic-webhook-injector`.
 * Make sure that `imagePullPolicy: Always` is not present in the file (otherwise, the image won't be pulled).
 
+#### Configuring Horizontal Pod Autoscaler
+
+If you have defined a HPA for a pod that will be monitored with New Relic Infrastructure Agent, you will have to take into account the New Relic sidecar resource request/limit when defining the auto scaling threshold. This is because the resource request/limit are set on the container level while the auto scaling threshold is set on pod. For more information read the [official documentation](https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/#resource-requests-and-limits-of-pod-and-container) for Resource requests and limits of Pod and Container.
+
+The New Relic sidecar will have defined by default values for CPU and memory resource request/limit:
+ * `cpu: "100m"`
+ * `memory: "64Mi"`
+
+We suggest to take those values into account when defining the auto scaling target threshold.
+
+e.g.
+
+*  You have defined a container CPU request of `1000m` and a pod `targetCPUUtilizationPercentage` of `90%`
+we suggest that you adjust the `targetCPUUtilizationPercentage` to: Floor(90 * 1000 / 1100)) = `81%`
+
 ### Run
 
 Run `skaffold run`. This will build a docker image, build the webhook server inside it, and finally deploy the webhook server to your Minikube and use the Kubernetes API server to sign its TLS certificate ([see section about certificates](#3-install-the-certificates)).
