@@ -43,6 +43,7 @@ if [[ ! -x "$(command -v openssl)" ]]; then
 fi
 
 # wait until CSR is available
+echo "INFO: checking CSR..."
 set +e
 while true; do
   if kubectl get csr "${csr}"; then
@@ -64,7 +65,7 @@ if [[ "${cert}" = "" ]]; then
 fi
 
 tmpdir=$(mktemp -d)
-echo "creating certificate files in tmpdir ${tmpdir} "
+echo "INFO: creating certificate files in tmpdir ${tmpdir} "
 
 echo "${cert}" | openssl base64 -d -A -out "${tmpdir}/server-cert.pem"
 
@@ -80,7 +81,7 @@ caBundle=$(kubectl get configmap -n kube-system extension-apiserver-authenticati
 set +e
 # patch the webhook adding the caBundle. It uses an `add` operation to avoid errors in OpenShift
 while true; do
-  echo "INFO: Trying to patch webhook adding the caBundle."
+  echo "INFO: Trying to patch webhook adding the caBundle..."
   if kubectl patch mutatingwebhookconfiguration "${cfg}" --type='json' -p "[{'op': 'add', 'path': '/webhooks/0/clientConfig/caBundle', 'value':'${caBundle}'}]"; then
       break
   fi

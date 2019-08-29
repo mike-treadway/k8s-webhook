@@ -51,7 +51,7 @@ csr="${svc}.${ns}"
 
 # ephemeral files folder
 tmpdir=$(mktemp -d)
-echo "creating certificate files in tmpdir ${tmpdir} "
+echo "INFO: creating certificate files in tmpdir ${tmpdir} "
 
 # generate key when not provided
 if [[ "$keyFile" == "" ]]; then
@@ -106,6 +106,7 @@ cat << EOF
 K8s CSR:  ${csr}
 Key file: ${keyFile}
 
+Remaining steps:
 Approve CSR:                    kubectl certificate approve "${csr}"
 Sign and install certiticate:   cert/generate_certificate.sh ${keyFile}
 
