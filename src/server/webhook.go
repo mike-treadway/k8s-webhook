@@ -25,6 +25,7 @@ import (
 
 const (
 	maxMutationRetries = 10
+	mutationRetryDelay = 500 * time.Millisecond
 )
 
 var (
@@ -172,7 +173,7 @@ func (whsvr *Webhook) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					if cErr, ok := err.(*ConfigMapNotFoundErr); ok {
 						retries++
 						whsvr.Logger.Warnw("config map not found during mutation, retrying", "configmap", cErr.ConfigMapName())
-						time.Sleep(500 * time.Millisecond)
+						time.Sleep(mutationRetryDelay)
 						goto retryMutate
 					}
 				}
