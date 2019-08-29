@@ -1,3 +1,45 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgresql-newrelic-integrations-config
+  namespace: default
+data:
+  config.yaml: |
+    integration_name: com.newrelic.postgresql
+    instances:
+      - name: sample_postgres
+        command: all_data
+        arguments:
+          username: new_relic
+          password: $NR_POSTGRES_PASSWORD
+          collection_list: '{"mydb":{"mys":{"mytbl":[]}}}'
+        labels:
+          env: production
+          role: postgresql
+  definition.yaml: |
+    name: com.newrelic.postgresql
+    description: Reports status and metrics for postgresql service
+    protocol_version: 2
+    os: linux
+    commands:
+      all_data:
+        command:
+          - ./bin/nr-postgresql
+        prefix: config/postgresql
+        interval: 15
+      metrics:
+        command:
+          - ./bin/nr-postgresql
+          - --metrics
+        prefix: config/postgresql
+        interval: 15
+      inventory:
+        command:
+          - ./bin/nr-postgresql
+          - --inventory
+        prefix: config/postgresql
+        interval: 15
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -49,45 +91,3 @@ metadata:
 type: Opaque
 data:
   password: cm9vdA==
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: postgresql-newrelic-integrations-config
-  namespace: default
-data:
-  config.yaml: |
-    integration_name: com.newrelic.postgresql
-    instances:
-      - name: sample_postgres
-        command: all_data
-        arguments:
-          username: new_relic
-          password: $NR_POSTGRES_PASSWORD
-          collection_list: '{"mydb":{"mys":{"mytbl":[]}}}'
-        labels:
-          env: production
-          role: postgresql
-  definition.yaml: |
-    name: com.newrelic.postgresql
-    description: Reports status and metrics for postgresql service
-    protocol_version: 2
-    os: linux
-    commands:
-      all_data:
-        command:
-          - ./bin/nr-postgresql
-        prefix: config/postgresql
-        interval: 15
-      metrics:
-        command:
-          - ./bin/nr-postgresql
-          - --metrics
-        prefix: config/postgresql
-        interval: 15
-      inventory:
-        command:
-          - ./bin/nr-postgresql
-          - --inventory
-        prefix: config/postgresql
-        interval: 15
