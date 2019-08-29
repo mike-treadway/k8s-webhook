@@ -91,8 +91,8 @@ type code interface {
 }
 
 func errorCode(err error) int {
-	if me, ok := err.(code); ok {
-		return me.Code()
+	if _, ok := err.(*ConfigMapNotFoundErr); ok {
+		return http.StatusBadRequest
 	}
 	return http.StatusInternalServerError
 }
