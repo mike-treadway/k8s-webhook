@@ -202,7 +202,16 @@
                     "value": "/nri-sidecar/newrelic-infra"
                 }
             ],
-            "resources": {},
+            "resources": {
+                "limits": {
+                    "cpu": "100m",
+                    "memory": "64Mi"
+                },
+                "requests": {
+                    "cpu": "100m",
+                    "memory": "64Mi"
+                }
+            },
             "volumeMounts": [
                 {
                     "name": "integration-config",
