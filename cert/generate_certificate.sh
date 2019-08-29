@@ -78,15 +78,13 @@ kubectl create secret tls "${secret}" \
 caBundle=$(kubectl get configmap -n kube-system extension-apiserver-authentication -o=jsonpath='{.data.client-ca-file}' | base64 | tr -d '\n')
 
 set +e
-# Patch the webhook adding the caBundle. It uses an `add` operation to avoid errors in OpenShift because it doesn't set
-# a default value of empty string like Kubernetes. Instead, it doesn't create the caBundle key.
-# As the webhook is not created yet (the process should be done manually right after this job is created),
-# the job will not end until the webhook is patched.
+# patch the webhook adding the caBundle. It uses an `add` operation to avoid errors in OpenShift
 while true; do
   echo "INFO: Trying to patch webhook adding the caBundle."
   if kubectl patch mutatingwebhookconfiguration "${cfg}" --type='json' -p "[{'op': 'add', 'path': '/webhooks/0/clientConfig/caBundle', 'value':'${caBundle}'}]"; then
       break
   fi
   echo "INFO: webhook not patched. Retrying in 5s..."
+  echo "INFO: did you already create the webhook? kubectl apply -f deploy/newrelic-webhook.yaml"
   sleep 5
 done

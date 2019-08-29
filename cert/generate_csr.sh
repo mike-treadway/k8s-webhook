@@ -101,7 +101,12 @@ spec:
   - server auth
 EOF
 
-echo ""
-echo "Key file: ${keyFile}"
-echo "K8s CSR:  ${csr}"
-echo ""
+cat << EOF
+
+K8s CSR:  ${csr}
+Key file: ${keyFile}
+
+Approve CSR:                    kubectl certificate approve "${csr}"
+Sign and install certiticate:   cert/generate_certificate.sh ${keyFile}
+
+EOF
