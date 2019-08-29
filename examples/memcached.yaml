@@ -1,26 +1,3 @@
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: memcached-deployment
-  labels:
-    app: memcached
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: memcached
-  template:
-    metadata:
-      annotations:
-        newrelic.com/integrations-sidecar-configmap: "memcached-newrelic-integrations-config"
-        newrelic.com/integrations-sidecar-imagename: "newrelic/k8s-nri-memcached"
-      labels:
-        app: memcached
-    spec:
-      containers:
-      - name: memcached
-        image: memcached:1.5-alpine
----
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -60,4 +37,26 @@ data:
           - --inventory
         prefix: config/memcached
         interval: 15
-
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memcached-deployment
+  labels:
+    app: memcached
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: memcached
+  template:
+    metadata:
+      annotations:
+        newrelic.com/integrations-sidecar-configmap: "memcached-newrelic-integrations-config"
+        newrelic.com/integrations-sidecar-imagename: "newrelic/k8s-nri-memcached"
+      labels:
+        app: memcached
+    spec:
+      containers:
+      - name: memcached
+        image: memcached:1.5-alpine

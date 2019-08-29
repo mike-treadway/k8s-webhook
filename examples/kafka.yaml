@@ -1,4 +1,69 @@
 apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-newrelic-integrations-config
+  namespace: default
+data:
+  config.yaml: |
+    integration_name: com.newrelic.kafka
+    instances:
+      - name: kafka-metrics
+        command: metrics
+        arguments:
+          zookeeper_hosts: '[{"host": "zk-0.zk-hs", "port": 2181}, {"host": "zk-1.zk-hs", "port": 2181}, {"host": "zk-2.zk-hs", "port": 2181}]'
+          producers: '[{"name": "myclient", "host": "localhost", "port": 9090}]'
+          consumers: '[{"name": "myclient", "host": "localhost", "port": 9090}]'
+          default_jmx_host: "localhost"
+          default_jmx_port: 19999
+          collect_broker_topic_data: true
+          topic_mode: all
+          collect_topic_size: true
+        labels:
+          env: production
+          role: kafka
+      - name: kafka-inventory
+        command: inventory
+        arguments:
+          zookeeper_hosts: '[{"host": "zk-0.zk-hs", "port": 2181}, {"host": "zk-1.zk-hs", "port": 2181}, {"host": "zk-2.zk-hs", "port": 2181}]'
+          topic_mode: all
+        labels:
+          env: production
+          role: kafka
+      - name: kafka-consumer-offsets
+        command: consumer_offset
+        arguments:
+          zookeeper_hosts: '[{"host": "zk-0.zk-hs", "port": 2181}, {"host": "zk-1.zk-hs", "port": 2181}, {"host": "zk-2.zk-hs", "port": 2181}]'
+          consumer_groups: '{"myconsumer":{"mytopic":[0]}}'
+        labels:
+          env: production
+          role: kafka
+  definition.yaml: |
+    name: com.newrelic.kafka
+    description: Reports status and metrics for Kafka services
+    protocol_version: 2
+    os: linux
+    commands:
+      metrics:
+        command:
+          - ./bin/nr-kafka
+          - --metrics
+        interval: 15
+      inventory:
+        command:
+          - ./bin/nr-kafka
+          - --inventory
+        prefix: config/kafka
+        interval: 15
+      consumer_offset:
+        command:
+          - ./bin/nr-kafka
+          - --consumer_offset
+          - --inventory=false
+          - --metrics=false
+        prefix: config/kafka
+        interval: 15
+---
+apiVersion: v1
 kind: Service
 metadata:
   name: kafka-hs
@@ -265,7 +330,7 @@ data:
             </configuration>
           </plugin>
         </plugins>
-      </build>  
+      </build>
     </project>
   KafkaExample.java: |
     import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -449,68 +514,3 @@ spec:
       resources:
         requests:
           storage: 1Gi
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: kafka-newrelic-integrations-config
-  namespace: default
-data:
-  config.yaml: |
-    integration_name: com.newrelic.kafka
-    instances:
-      - name: kafka-metrics
-        command: metrics
-        arguments:
-          zookeeper_hosts: '[{"host": "zk-0.zk-hs", "port": 2181}, {"host": "zk-1.zk-hs", "port": 2181}, {"host": "zk-2.zk-hs", "port": 2181}]'
-          producers: '[{"name": "myclient", "host": "localhost", "port": 9090}]'
-          consumers: '[{"name": "myclient", "host": "localhost", "port": 9090}]'
-          default_jmx_host: "localhost"
-          default_jmx_port: 19999
-          collect_broker_topic_data: true
-          topic_mode: all
-          collect_topic_size: true
-        labels:
-          env: production
-          role: kafka
-      - name: kafka-inventory
-        command: inventory
-        arguments:
-          zookeeper_hosts: '[{"host": "zk-0.zk-hs", "port": 2181}, {"host": "zk-1.zk-hs", "port": 2181}, {"host": "zk-2.zk-hs", "port": 2181}]'
-          topic_mode: all
-        labels:
-          env: production
-          role: kafka
-      - name: kafka-consumer-offsets
-        command: consumer_offset
-        arguments:
-          zookeeper_hosts: '[{"host": "zk-0.zk-hs", "port": 2181}, {"host": "zk-1.zk-hs", "port": 2181}, {"host": "zk-2.zk-hs", "port": 2181}]'
-          consumer_groups: '{"myconsumer":{"mytopic":[0]}}'
-        labels:
-          env: production
-          role: kafka
-  definition.yaml: |
-    name: com.newrelic.kafka
-    description: Reports status and metrics for Kafka services
-    protocol_version: 2
-    os: linux
-    commands:
-      metrics:
-        command:
-          - ./bin/nr-kafka
-          - --metrics
-        interval: 15
-      inventory:
-        command:
-          - ./bin/nr-kafka
-          - --inventory
-        prefix: config/kafka
-        interval: 15
-      consumer_offset:
-        command:
-          - ./bin/nr-kafka
-          - --consumer_offset
-          - --inventory=false
-          - --metrics=false
-        prefix: config/kafka
-        interval: 15

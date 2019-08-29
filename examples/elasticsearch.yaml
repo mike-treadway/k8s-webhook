@@ -1,6 +1,42 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
+  name: elasticsearch-newrelic-integrations-config
+  namespace: default
+data:
+  config.yaml: |
+    integration_name: com.newrelic.elasticsearch
+    instances:
+      - name: elasticsearch
+        command: all
+        arguments:
+          cluster_environment: $HOSTNAME
+          username: elasticsearch
+          password: changeme
+        labels:
+          role: elasticsearch
+  definition.yaml: |
+    name: com.newrelic.elasticsearch
+    description: Reports status and metrics for elasticsearch service
+    protocol_version: 2
+    os: linux
+
+    commands:
+      all:
+        command:
+          - ./bin/nr-elasticsearch
+        prefix: config/elasticsearch
+        interval: 15
+      inventory:
+        command:
+          - ./bin/nr-elasticsearch
+          - --inventory
+        prefix: config/elasticsearch
+        interval: 15
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
   name: es-config
 data:
   elasticsearch.yml: |
@@ -63,39 +99,3 @@ spec:
       resources:
         requests:
           storage: 10Gi
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: elasticsearch-newrelic-integrations-config
-  namespace: default
-data:
-  config.yaml: |
-    integration_name: com.newrelic.elasticsearch
-    instances:
-      - name: elasticsearch
-        command: all
-        arguments:
-          cluster_environment: $HOSTNAME
-          username: elasticsearch
-          password: changeme
-        labels:
-          role: elasticsearch
-  definition.yaml: |
-    name: com.newrelic.elasticsearch
-    description: Reports status and metrics for elasticsearch service
-    protocol_version: 2
-    os: linux
-
-    commands:
-      all:
-        command:
-          - ./bin/nr-elasticsearch
-        prefix: config/elasticsearch
-        interval: 15
-      inventory:
-        command:
-          - ./bin/nr-elasticsearch
-          - --inventory
-        prefix: config/elasticsearch
-        interval: 15
