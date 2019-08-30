@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/newrelic/k8s-webhook/src/k8s"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"go.uber.org/zap/zapcore"
 
@@ -30,16 +31,22 @@ const (
 
 // envVarSpec contains arguments specification for the env-vars extraction.
 type envVarSpec struct {
-	Port        int           `default:"443"`                                                      // Webhook server port.
-	TLSCertFile string        `default:"/etc/tls-key-cert-pair/tls.crt" envconfig:"tls_cert_file"` // File containing the x509 Certificate for HTTPS.
-	TLSKeyFile  string        `default:"/etc/tls-key-cert-pair/tls.key" envconfig:"tls_key_file"`  // File containing the x509 private key for TLSCERTFILE.
-	ClusterName string        `default:"cluster" split_words:"true"`                               // The name of the Kubernetes cluster.
-	Timeout     time.Duration // server timeout. Defaults to the timeout passed by K8s API via query param. If not present, to the defaultTimeout const value.
+	Port             int           `default:"8443"`                                                     // Webhook server port.
+	TLSCertFile      string        `default:"/etc/tls-key-cert-pair/tls.crt" envconfig:"tls_cert_file"` // File containing the x509 Certificate for HTTPS.
+	TLSKeyFile       string        `default:"/etc/tls-key-cert-pair/tls.key" envconfig:"tls_key_file"`  // File containing the x509 private key for TLSCERTFILE.
+	ClusterName      string        `default:"cluster" split_words:"true"`                               // The name of the Kubernetes cluster.
+	Timeout          time.Duration // server timeout. Defaults to the timeout passed by K8s API via query param. If not present, to the defaultTimeout const value.
+	IgnoreNamespaces []string      `split_words:"true"` // The Webhook will ignore these namespaces.
 }
 
 func main() {
 	var s envVarSpec
+	s.IgnoreNamespaces = []string{
+		metav1.NamespaceSystem,
+		metav1.NamespacePublic,
+	}
 	err := envconfig.Process(envVarPrefix, &s)
+
 	if err != nil {
 		log.Fatal(err.Error())
 	}
@@ -75,7 +82,8 @@ func main() {
 		Server: &http.Server{
 			Addr: fmt.Sprintf(":%d", s.Port),
 		},
-		Logger: logger,
+		Logger:           logger,
+		IgnoreNamespaces: s.IgnoreNamespaces,
 	}
 	whsvr.Server.TLSConfig = &tls.Config{GetCertificate: whsvr.GetCert}
 	whsvr.Mutators = append(whsvr.Mutators,

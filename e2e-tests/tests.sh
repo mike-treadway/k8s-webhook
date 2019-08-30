@@ -33,7 +33,9 @@ trap finish EXIT
 
 # install the webhook
 kubectl create -f ../deploy/job.yaml
-awk '/image: / { print; print "        imagePullPolicy: Never"; next }1' ../deploy/newrelic-webhook.yaml | kubectl create -f -
+awk '/image: / { print; print "        imagePullPolicy: Never"; next }1' ../deploy/newrelic-webhook.yaml | \
+    tr '\n' '\f' | sed -e 's/#value: "<NRIA_LICENSE_KEY>".*nria-license-key/value: "test"/' | tr '\f' '\n' | \
+    kubectl create -f -
 
 job_pod_name=$(get_pod_name_by_label "$JOB_LABEL")
 if [ "$job_pod_name" = "" ]; then

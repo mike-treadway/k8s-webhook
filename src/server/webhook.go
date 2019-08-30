@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
 
@@ -22,16 +23,16 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 )
 
+const (
+	maxMutationRetries = 10
+	mutationRetryDelay = 500 * time.Millisecond
+)
+
 var (
 	runtimeScheme = runtime.NewScheme()
 	codecs        = serializer.NewCodecFactory(runtimeScheme)
 	deserializer  = codecs.UniversalDeserializer()
 )
-
-var ignoredNamespaces = []string{
-	metav1.NamespaceSystem,
-	metav1.NamespacePublic,
-}
 
 // PatchOperation defines a patch to a k8s api resource
 type PatchOperation struct {
@@ -47,14 +48,15 @@ type podMutator interface {
 // Webhook is a webhook server that can accept requests from the Apiserver
 type Webhook struct {
 	sync.RWMutex
-	CertFile    string
-	KeyFile     string
-	Cert        *tls.Certificate
-	ClusterName string
-	Logger      *zap.SugaredLogger
-	Server      *http.Server
-	CertWatcher *fsnotify.Watcher
-	Mutators    []podMutator
+	CertFile         string
+	KeyFile          string
+	Cert             *tls.Certificate
+	ClusterName      string
+	Logger           *zap.SugaredLogger
+	Server           *http.Server
+	CertWatcher      *fsnotify.Watcher
+	Mutators         []podMutator
+	IgnoreNamespaces []string
 }
 
 // GetCert returns the certificate that should be used by the server in the TLS handshake.
@@ -81,13 +83,9 @@ func mutationRequired(ignoredList []string, metadata *metav1.ObjectMeta) bool {
 	return true
 }
 
-type code interface {
-	Code() int
-}
-
 func errorCode(err error) int {
-	if me, ok := err.(code); ok {
-		return me.Code()
+	if _, ok := err.(*ConfigMapNotFoundErr); ok {
+		return http.StatusBadRequest
 	}
 	return http.StatusInternalServerError
 }
@@ -154,13 +152,23 @@ func (whsvr *Webhook) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		req.Name, "pod", pod.Name, "UID", req.UID, "operation", req.Operation, "userinfo", req.UserInfo)
 
 	// determine whether to perform mutation
-	if !mutationRequired(ignoredNamespaces, &pod.ObjectMeta) {
+	if !mutationRequired(whsvr.IgnoreNamespaces, &pod.ObjectMeta) {
 		whsvr.Logger.Infow("skipped mutation", "namespace", pod.Namespace, "pod", pod.Name, "reason", "policy check (special namespaces)")
 	} else {
 		var patches []PatchOperation
+		retries := 0
 		for _, m := range whsvr.Mutators {
+		retryMutate:
 			p, err := m.Mutate(&pod)
 			if err != nil {
+				if retries <= maxMutationRetries {
+					if cErr, ok := err.(*ConfigMapNotFoundErr); ok {
+						retries++
+						whsvr.Logger.Warnw("config map not found during mutation, retrying", "configmap", cErr.ConfigMapName())
+						time.Sleep(mutationRetryDelay)
+						goto retryMutate
+					}
+				}
 				whsvr.Logger.Errorw("error during mutation", "err", err)
 				http.Error(w, fmt.Sprintf("error during mutation: %q", err.Error()), errorCode(err))
 				return
