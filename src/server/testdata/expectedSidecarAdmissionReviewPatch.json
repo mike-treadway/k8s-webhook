@@ -65,6 +65,18 @@
         "op": "add",
         "path": "/spec/containers/0/env/-",
         "value": {
+            "name": "NRIA_DISPLAY_NAME",
+            "valueFrom": {
+                "fieldRef": {
+                    "fieldPath": "spec.nodeName"
+                }
+            }
+        }
+    },
+    {
+        "op": "add",
+        "path": "/spec/containers/0/env/-",
+        "value": {
             "name": "NEW_RELIC_METADATA_KUBERNETES_DEPLOYMENT_NAME",
             "value": "test"
         }
@@ -129,6 +141,18 @@
         "value": {
             "name": "NEW_RELIC_METADATA_KUBERNETES_CONTAINER_IMAGE_NAME",
             "value": "newrelic/image2:1.0.0"
+        }
+    },
+    {
+        "op": "add",
+        "path": "/spec/containers/1/env/-",
+        "value": {
+            "name": "NRIA_DISPLAY_NAME",
+            "valueFrom": {
+                "fieldRef": {
+                    "fieldPath": "spec.nodeName"
+                }
+            }
         }
     },
     {
