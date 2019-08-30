@@ -22,7 +22,7 @@ The webhook intercepts *POD creation* requests to the Kubernetes API and mutates
 
 ## Setup
 
-### 1) Support
+### 1) Requirements
 
 Check if MutatingAdmissionWebhook is enabled on your cluster. This feature requires *Kubernetes 1.9* or later. Verify that the kube-apiserver process has the admission-control flag set.
 
