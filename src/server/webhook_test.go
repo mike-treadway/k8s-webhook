@@ -10,7 +10,9 @@ import (
 	"path"
 	"testing"
 
+	"github.com/kinbiko/jsonassert"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"k8s.io/api/admission/v1beta1"
 	corev1 "k8s.io/api/core/v1"
@@ -155,25 +157,24 @@ func TestServeHTTP(t *testing.T) {
 	server := httptest.NewServer(whsvr)
 	defer server.Close()
 
+	ja := jsonassert.New(t)
 	for i, c := range cases {
 		t.Run(fmt.Sprintf("[%d] %s", i, c.name), func(t *testing.T) {
 
-			fmt.Println(c.name)
+			t.Log(c.name)
 			resp, err := http.Post(server.URL, c.contentType, bytes.NewReader(c.requestBody))
-			assert.NoError(t, err)
-			assert.Equal(t, c.expectedStatusCode, resp.StatusCode)
+			require.NoError(t, err)
+			require.Equal(t, c.expectedStatusCode, resp.StatusCode)
 
 			gotBody, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				t.Fatalf("could not read body: %v", err)
-			}
+			require.NoError(t, err)
+
 			var gotReview v1beta1.AdmissionReview
 			if err := json.Unmarshal(gotBody, &gotReview); err != nil {
-				assert.Equal(t, c.expectedBodyWhenHTTPError, string(gotBody))
-				return
+				require.Equal(t, c.expectedBodyWhenHTTPError, string(gotBody))
+			} else {
+				ja.Assertf(string(gotReview.Response.Patch), string(c.expectedAdmissionReview.Response.Patch))
 			}
-
-			assert.Equal(t, c.expectedAdmissionReview, gotReview)
 		})
 	}
 
