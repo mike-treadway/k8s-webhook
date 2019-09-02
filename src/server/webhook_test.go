@@ -51,7 +51,7 @@ func loadTestData(t *testing.T, name string) []byte {
 
 func TestServeHTTP(t *testing.T) {
 	expectedEnvVarsPatchForValidBody := loadTestData(t, "expectedEnvVarsAdmissionReviewPatch.json")
-	//expectedSidecarPatchForValidBody := loadTestData(t, "expectedSidecarAdmissionReviewPatch.json")
+	expectedSidecarPatchForValidBody := loadTestData(t, "expectedSidecarAdmissionReviewPatch.json")
 	missingObjectRequestBody := bytes.Replace(makeTestData(t, "default", map[string]string{}), []byte("\"object\""), []byte("\"foo\""), -1)
 
 	patchTypeForValidBody := v1beta1.PatchTypeJSONPatch
@@ -120,22 +120,21 @@ func TestServeHTTP(t *testing.T) {
 			expectedStatusCode:        http.StatusBadRequest,
 			expectedBodyWhenHTTPError: fmt.Sprintf("object not present in request body: %q\n", missingObjectRequestBody),
 		},
-		// TODO fix test case
-		//{
-		//	name:               "sidecar mutation applied - with sidecar",
-		//	requestBody:        makeTestData(t, "default", map[string]string{"newrelic.com/integrations-sidecar-configmap": configName}),
-		//	contentType:        "application/json",
-		//	expectedStatusCode: http.StatusOK,
-		//	expectedAdmissionReview: v1beta1.AdmissionReview{
-		//		Response: &v1beta1.AdmissionResponse{
-		//			UID:       types.UID(1),
-		//			Allowed:   true,
-		//			Result:    nil,
-		//			Patch:     expectedSidecarPatchForValidBody,
-		//			PatchType: &patchTypeForValidBody,
-		//		},
-		//	},
-		//},
+		{
+			name:               "sidecar mutation applied - with sidecar",
+			requestBody:        makeTestData(t, "default", map[string]string{"newrelic.com/integrations-sidecar-configmap": configName}),
+			contentType:        "application/json",
+			expectedStatusCode: http.StatusOK,
+			expectedAdmissionReview: v1beta1.AdmissionReview{
+				Response: &v1beta1.AdmissionResponse{
+					UID:       types.UID(1),
+					Allowed:   true,
+					Result:    nil,
+					Patch:     expectedSidecarPatchForValidBody,
+					PatchType: &patchTypeForValidBody,
+				},
+			},
+		},
 		{
 			name:                      "sidecar mutation - wrong config map name",
 			requestBody:               makeTestData(t, "default", map[string]string{"newrelic.com/integrations-sidecar-configmap": "wrong"}),

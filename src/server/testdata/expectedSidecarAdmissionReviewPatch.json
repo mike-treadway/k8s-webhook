@@ -199,20 +199,20 @@
                     }
                 },
                 {
-                    "name": "NRIA_DISPLAY_NAME",
-                    "valueFrom": {
-                        "fieldRef": {
-                            "fieldPath": "spec.nodeName"
-                        }
-                    }
-                },
-                {
                     "name": "NEW_RELIC_METADATA_KUBERNETES_CONTAINER_NAME",
                     "value": "c1"
                 },
                 {
                     "name": "NEW_RELIC_METADATA_KUBERNETES_CONTAINER_IMAGE_NAME",
                     "value": "newrelic/image:latest"
+                },
+                {
+                    "name": "NRIA_DISPLAY_NAME",
+                    "valueFrom": {
+                        "fieldRef": {
+                            "fieldPath": "spec.nodeName"
+                        }
+                    }
                 },
                 {
                     "name": "NEW_RELIC_METADATA_KUBERNETES_DEPLOYMENT_NAME",
