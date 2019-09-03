@@ -327,6 +327,9 @@ Run `skaffold run`. This will build a docker image, build the webhook server ins
 
 To follow the logs, you can run `skaffold run --tail`. To delete the resources created by Skaffold you can run `skaffold delete`.
 
+Please read the [Accessing the On-host integrations logs](docs/logs.md) document for more details about how to read the
+On-Host Integrations logs.
+
 If you would like to enable automatic redeploy on changes to the repository, you can run `skaffold dev`. It automatically tails the logs and delete the resources when interrupted (i.e. with a `Ctrl + C`).
 
 ### Tests
