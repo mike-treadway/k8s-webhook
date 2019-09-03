@@ -19,6 +19,12 @@ The webhook intercepts *POD creation* requests to the Kubernetes API and mutates
     These environment variables can either be automatically injected using a `MutatingAdmissionWebhook`, or be set manually by the customer. 
 
     New Relic provides an easy method for deploying this automatic approach.
+    
+The `newrelic-webhook-svc` service internally exposes two ports:
+
+* `8443`, required by the service. It can be configured in the `newrelic-webhook.yml` deployement file:
+   https://github.com/newrelic/k8s-webhook/blob/master/deploy/newrelic-webhook.yaml#L55
+* `8080`, required for health check of the service.
 
 ## Setup
 
