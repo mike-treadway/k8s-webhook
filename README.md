@@ -22,7 +22,7 @@ The webhook intercepts *POD creation* requests to the Kubernetes API and mutates
     
 The `newrelic-webhook-svc` service internally exposes two ports:
 
-* `8443`, required by the service. It can be configured in the `newrelic-webhook.yml` deployement file:
+* `8443`, required by the service. It can be configured in the `newrelic-webhook.yml` deployment file:
    https://github.com/newrelic/k8s-webhook/blob/master/deploy/newrelic-webhook.yaml#L55
 * `8080`, required for health check of the service.
 
