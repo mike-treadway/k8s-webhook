@@ -27,6 +27,7 @@ func (m *metadataEnvGenerator) getVars(pod *corev1.Pod, container *corev1.Contai
 		createEnvVarFromFieldPath("NEW_RELIC_METADATA_KUBERNETES_POD_NAME", "metadata.name"),
 		createEnvVarFromString("NEW_RELIC_METADATA_KUBERNETES_CONTAINER_NAME", container.Name),
 		createEnvVarFromString("NEW_RELIC_METADATA_KUBERNETES_CONTAINER_IMAGE_NAME", container.Image),
+		createEnvVarFromFieldPath("NRIA_DISPLAY_NAME", "spec.nodeName"),
 	}
 
 	if len(pod.OwnerReferences) == 1 {
