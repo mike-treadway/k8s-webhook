@@ -1,5 +1,7 @@
 # Kubernetes webhook for New Relic
 
+To note that this tool is in an early stage of development and some breaking changes might happen. We not recommend using `:latest` tag for neither the webhook or the integration images. You can check the integration version requirements in the [dependencies](####dependencies) section
+
 ## Definition
 
 The webhook intercepts *POD creation* requests to the Kubernetes API and mutates them in the following ways:
@@ -211,6 +213,29 @@ of an integration argument starts with `$`, the injector assumes this refers to 
 
 The agent license and other agent configuration environment variables can be added to the injector deployment and they will be all copied to the injected sidecars.
 
+#### Dependencies
+
+You can check in the table bellow the minimum integration version required by specific webhook version:
+
+| Integration           |k8s-webhook v0.0.3|
+|-----------------------|:-----------------
+| k8s-nri-nginx         | >=1.3.1
+| k8s-nri-elasticsearch | >=4.1.1
+| k8s-nri-mysql         | >=1.3.1
+| k8s-nri-cassandra     | >=2.2.1
+| k8s-nri-jmx           | >=0.0.2
+| k8s-nri-rabbitmq      | >=2.1.1
+| k8s-nri-redis         | >=1.2.1
+| k8s-nri-kafka         | >=2.2.2
+| k8s-nri-postgresql    | >=2.1.4
+| k8s-nri-apache        | >=1.3.1
+| k8s-nri-mongodb       | >=2.2.1
+| k8s-nri-nagios        | >=2.1.3
+| k8s-nri-consul        | >=2.0.3
+| k8s-nri-couchbase     | >=2.0.3
+| k8s-nri-haproxy       | >=2.0.3
+| k8s-nri-memcached     | >=2.0.1
+
 #### Example configuration:
 
 ```
@@ -314,9 +339,9 @@ Currently for K8s libraries it uses version 1.13.1. Only couple of libraries are
 
 #### Configuring Horizontal Pod Autoscaler
 
-If you have defined a HPA for a pod that will be monitored with New Relic Infrastructure Agent, you will have to take into account the New Relic sidecar resource request/limit when defining the auto scaling threshold. This is because the resource request/limit are set on the container level while the auto scaling threshold is set on pod. For more information read the [official documentation](https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/#resource-requests-and-limits-of-pod-and-container) for Resource requests and limits of Pod and Container.
+If you have defined a HPA for a pod that will be monitored with New Relic Infrastructure Agent, you will have to take into account the New Relic sidecar resource request when defining the auto scaling threshold. This is because the resource request/limit are set on the container level while the auto scaling threshold is set on pod. For more information read the [official documentation](https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/#resource-requests-and-limits-of-pod-and-container) for Resource requests and limits of Pod and Container.
 
-The New Relic sidecar will have defined by default values for CPU and memory resource request/limit:
+The New Relic sidecar will have defined by default values for CPU and memory resource request:
  * `cpu: "100m"`
  * `memory: "64Mi"`
 

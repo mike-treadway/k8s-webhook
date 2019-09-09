@@ -76,10 +76,6 @@ func NewSidecarMutator(clusterName string, cfgMapRtrv configMapRetriever) *Sidec
 					corev1.ResourceCPU:    resource.MustParse("100m"),
 					corev1.ResourceMemory: resource.MustParse("64Mi"),
 				},
-				Limits: corev1.ResourceList{
-					corev1.ResourceCPU:    resource.MustParse("100m"),
-					corev1.ResourceMemory: resource.MustParse("64Mi"),
-				},
 			},
 		},
 		envGenerator: &metadataEnvGenerator{
