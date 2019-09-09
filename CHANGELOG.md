@@ -14,15 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Scripts for manual certificate generation and CSR approval.
 
-- Resource limits for sidecar.
+- Resource requests for sidecar.
 
 - Documentation on HPA tuning for sidecars.
 
 ### Changed
 
-- Container user is now 100 instead of root.
+- Container user is now 1000 instead of root.
 
 - Volume mounts prefixed with `/nri-sidecar/` to avoid collisions.
+
+- Secret management for NR license.
 
 ### Fixed
 
