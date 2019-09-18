@@ -213,6 +213,32 @@ of an integration argument starts with `$`, the injector assumes this refers to 
 
 The agent license and other agent configuration environment variables can be added to the injector deployment and they will be all copied to the injected sidecars.
 
+### 6) Upgrading
+
+#### Webhook
+In order to configure the way the webhook is updated, you can specify the `imagePullPolicy` in the `deploy/newrelic-webhook.yaml` file. If not specified, the default `imagePullPolicy` is `IfNotPresent` unless the image version is `:latest` in which case the image will be pulled every time. For more information read the kubernetes [official documentation](https://kubernetes.io/docs/concepts/containers/images/#updating-images).
+
+In order to update the webhook we recommend configuring a specific version for the webhook image in the `deploy/newrelic-webhook.yaml` file.
+
+e.g.:
+
+```
+containers:
+      - name: newrelic-webhook-injector
+        image: newrelic/k8s-webhook:0.0.3
+```
+
+#### Integration (sidecar)
+The injected sidecar container has the `imagePullPolicy` configured to `IfNotPresent` meaning that the integration image is pulled only if it is not already present locally. In order to update the integration to a newer version we recommend configuring in you're deployment file a version for the newrelic sidecar `newrelic.com/integrations-sidecar-imagename` annotation.
+
+e.g.:
+
+```
+newrelic.com/integrations-sidecar-imagename: "newrelic/k8s-nri-apache:1.3.0"
+```
+
+Integrations in K8s are in private Alpha for the moment, [official documentation](https://docs.newrelic.com/) will be published soon.
+
 #### Dependencies
 
 You can check in the table bellow the minimum integration version required by specific webhook version:
