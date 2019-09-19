@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Documentation on HPA tuning for sidecars.
 
+- Support for Apache, Cassandra, Consul, Couchbase, Haproxy, jmx-tomcat, Kafka, Memcached, Nagios, Postgresql.
+
 ### Changed
 
 - Container user is now 1000 instead of root.
@@ -30,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Documentation on certificate.
 
+- Issue when sidecar creation failed during mutation on slow systems, meanwhile configmap is not available.
+
 ## 0.0.2
 
 - Initial version of the webhook.
+
+- Support for Mysql, RabbitMQ, Nginx, MongoDB, Redis, ElasticSearch.
