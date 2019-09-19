@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 1.0.1
+## 0.0.3
 
 ### Added
 
@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Resource requests for sidecar.
 
 - Documentation on HPA tuning for sidecars.
+
+- Support for Apache, Cassandra, Consul, Couchbase, Haproxy, jmx-tomcat, Kafka, Memcached, Nagios, Postgresql.
 
 ### Changed
 
@@ -30,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Documentation on certificate.
 
-## 1.0.0
+- Issue when sidecar creation failed during mutation on slow systems, meanwhile configmap is not available.
+
+## 0.0.2
 
 - Initial version of the webhook.
+
+- Support for Mysql, RabbitMQ, Nginx, MongoDB, Redis, ElasticSearch.
