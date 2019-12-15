@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: haproxy-newrelic-integrations-config
+  namespace: default
+data:
+  config.yaml: |
+    integration_name: com.newrelic.haproxy
+
+    instances:
+      - name: haproxy
+        # Command can be all_data, metrics, or inventory
+        command: all_data
+        arguments:
+          stats_url: http://127.0.0.1:7777/stats
+          username: cacheuser
+          password: password
+          cluster_name: mmacias
+  definition.yaml: |
+    name: com.newrelic.haproxy
+    description: Reports status and metrics for haproxy service
+    protocol_version: 2
+    os: linux
+
+    commands:
+      all_data:
+        command:
+          - ./bin/nr-haproxy
+        prefix: config/haproxy
+        interval: 15
+      metrics:
+        command:
+          - ./bin/nr-haproxy
+          - --metrics
+        interval: 15
+      inventory:
+        command:
+          - ./bin/nr-haproxy
+          - --inventory
+        prefix: config/haproxy
+        interval: 15
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: haproxycfg-test-stats
+  namespace: default
+data:
+  haproxy.cfg: |
+    listen stats
+        bind :7777
+        mode http
+        stats enable
+        stats hide-version
+        stats realm Haproxy\ Statistics
+        stats uri /stats
+        stats auth cacheuser:password
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: haproxy-deployment
+  labels:
+    app: haproxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: haproxy
+  template:
+    metadata:
+      annotations:
+        newrelic.com/integrations-sidecar-configmap: "haproxy-newrelic-integrations-config"
+        newrelic.com/integrations-sidecar-imagename: "newrelic/k8s-nri-haproxy"
+      labels:
+        app: haproxy
+    spec:
+      containers:
+      - name: haproxy
+        image: haproxy:2.0.2-alpine
+        volumeMounts:
+        - name: haproxycfg-test-stats-file
+          mountPath: /usr/local/etc/haproxy
+      volumes:
+      - name: haproxycfg-test-stats-file
+        configMap:
+          name: haproxycfg-test-stats

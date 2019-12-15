@@ -2,7 +2,6 @@ package server
 
 import (
 	"fmt"
-	"net/http"
 	"os"
 	"strings"
 
@@ -11,6 +10,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -19,10 +19,14 @@ const (
 	annotationIntegrationImage     = "newrelic.com/integrations-sidecar-imagename"
 	annotationStatusKey            = "newrelic.com/integrations-sidecar-injector-status"
 	integrationConfigVolumeName    = "integration-config"
+	tmpfsDataVolumeName            = "tmpfs-data"
+	tmpfsUserDataVolumeName        = "tmpfs-user-data"
+	tmpfsTmpVolumeName             = "tmpfs-tmp"
 	defaultIntegrationImage        = "sidecar-image"
 	configKey                      = "config.yaml"
 	definitionKey                  = "definition.yaml"
 	injected                       = "injected"
+	defaultAgentDirPath            = "/nri-sidecar/newrelic-infra"
 	maxLabelsCount                 = 50
 )
 
@@ -44,6 +48,14 @@ type configMapRetriever interface {
 	ConfigMap(namespace, name string) (*corev1.ConfigMap, error)
 }
 
+func boolPointer(b bool) *bool {
+	return &b
+}
+
+func int64Pointer(i int64) *int64 {
+	return &i
+}
+
 // NewSidecarMutator - create new sidecar mutator instance
 func NewSidecarMutator(clusterName string, cfgMapRtrv configMapRetriever) *SidecarMutator {
 	sm := &SidecarMutator{
@@ -52,6 +64,19 @@ func NewSidecarMutator(clusterName string, cfgMapRtrv configMapRetriever) *Sidec
 			Name:            "newrelic-sidecar",
 			ImagePullPolicy: corev1.PullIfNotPresent,
 			Image:           defaultIntegrationImage,
+			SecurityContext: &corev1.SecurityContext{
+				AllowPrivilegeEscalation: boolPointer(false),
+				Privileged:               boolPointer(false),
+				RunAsNonRoot:             boolPointer(true),
+				ReadOnlyRootFilesystem:   boolPointer(false),
+				RunAsUser:                int64Pointer(1000),
+			},
+			Resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("100m"),
+					corev1.ResourceMemory: resource.MustParse("64Mi"),
+				},
+			},
 		},
 		envGenerator: &metadataEnvGenerator{
 			clusterName: clusterName,
@@ -71,17 +96,19 @@ func NewSidecarMutator(clusterName string, cfgMapRtrv configMapRetriever) *Sidec
 	return sm
 }
 
-type mutateError struct {
-	message string
-	code    int
+// ConfigMapNotFoundErr config map was not found
+type ConfigMapNotFoundErr struct {
+	configMapName string
 }
 
-func (me mutateError) Error() string {
-	return me.message
+// Error returns the error message.
+func (e ConfigMapNotFoundErr) Error() string {
+	return "config map not found"
 }
 
-func (me mutateError) Code() int {
-	return me.code
+// ConfigMapName returns config map name.
+func (e ConfigMapNotFoundErr) ConfigMapName() string {
+	return e.configMapName
 }
 
 // (https://github.com/kubernetes/kubernetes/issues/57982)
@@ -242,6 +269,7 @@ func (sm *SidecarMutator) addEnvVars(pod *corev1.Pod, sidecar *corev1.Container,
 		sidecar.Env = append(sidecar.Env, createEnvVarFromString("NRIA_PASSTHROUGH_ENVIRONMENT", strings.Join(envs, ",")))
 	}
 
+	sidecar.Env = append(sidecar.Env, createEnvVarFromString("NRIA_AGENT_DIR", defaultAgentDirPath))
 }
 
 type integrationCfg struct {
@@ -262,9 +290,8 @@ func (sm *SidecarMutator) createSidecar(pod *corev1.Pod) ([]corev1.Container, []
 	cfgMap, err := sm.cfgMapRtrv.ConfigMap(pod.Namespace, configMapName)
 	if err != nil {
 		if k8s_errors.IsNotFound(err) {
-			return nil, nil, &mutateError{
-				message: fmt.Sprintf("config map: '%s', not found", configMapName),
-				code:    http.StatusBadRequest,
+			return nil, nil, &ConfigMapNotFoundErr{
+				configMapName: configMapName,
 			}
 		}
 		return nil, nil, errors.Wrapf(err, "error retrieving config map '%s'", configMapName)
@@ -296,17 +323,38 @@ func (sm *SidecarMutator) createSidecar(pod *corev1.Pod) ([]corev1.Container, []
 				},
 			},
 		},
+		{
+			Name: tmpfsDataVolumeName,
+		},
+		{
+			Name: tmpfsUserDataVolumeName,
+		},
+		{
+			Name: tmpfsTmpVolumeName,
+		},
 	}
 	containerDef.VolumeMounts = []corev1.VolumeMount{
 		{
 			Name:      integrationConfigVolumeName,
-			MountPath: "/var/db/newrelic-infra/integrations.d/integration.yaml",
+			MountPath: defaultAgentDirPath + "/integrations.d/integration.yaml",
 			SubPath:   configKey,
 		},
 		{
 			Name:      integrationConfigVolumeName,
-			MountPath: "/var/db/newrelic-infra/newrelic-integrations/definition.yaml",
+			MountPath: defaultAgentDirPath + "/newrelic-integrations/definition.yaml",
 			SubPath:   definitionKey,
+		},
+		{
+			Name:      tmpfsDataVolumeName,
+			MountPath: defaultAgentDirPath + "/data",
+		},
+		{
+			Name:      tmpfsUserDataVolumeName,
+			MountPath: defaultAgentDirPath + "/user_data",
+		},
+		{
+			Name:      tmpfsTmpVolumeName,
+			MountPath: "/tmp",
 		},
 	}
 
@@ -316,7 +364,7 @@ func (sm *SidecarMutator) createSidecar(pod *corev1.Pod) ([]corev1.Container, []
 			if k != configKey && k != definitionKey {
 				vol := corev1.VolumeMount{
 					Name:      integrationConfigVolumeName,
-					MountPath: "/var/db/newrelic-infra/user_data/" + k,
+					MountPath: defaultAgentDirPath + "/user_data/" + k,
 					SubPath:   k,
 				}
 				containerDef.VolumeMounts = append(containerDef.VolumeMounts, vol)

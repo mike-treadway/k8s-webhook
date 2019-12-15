@@ -10,7 +10,9 @@ import (
 	"path"
 	"testing"
 
+	"github.com/kinbiko/jsonassert"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"k8s.io/api/admission/v1beta1"
 	corev1 "k8s.io/api/core/v1"
@@ -23,6 +25,8 @@ import (
 )
 
 const (
+	clusterName       = "foobar"
+	configName        = "my-config"
 	integrationConfig = `integration_name: com.newrelic.nginx
 instances:
   - name: nginx-server-metrics
@@ -49,7 +53,6 @@ func TestServeHTTP(t *testing.T) {
 	expectedEnvVarsPatchForValidBody := loadTestData(t, "expectedEnvVarsAdmissionReviewPatch.json")
 	expectedSidecarPatchForValidBody := loadTestData(t, "expectedSidecarAdmissionReviewPatch.json")
 	missingObjectRequestBody := bytes.Replace(makeTestData(t, "default", map[string]string{}), []byte("\"object\""), []byte("\"foo\""), -1)
-	configName := "my-config"
 
 	patchTypeForValidBody := v1beta1.PatchTypeJSONPatch
 	cases := []struct {
@@ -137,11 +140,10 @@ func TestServeHTTP(t *testing.T) {
 			requestBody:               makeTestData(t, "default", map[string]string{"newrelic.com/integrations-sidecar-configmap": "wrong"}),
 			contentType:               "application/json",
 			expectedStatusCode:        http.StatusBadRequest,
-			expectedBodyWhenHTTPError: fmt.Sprintf("error during mutation: \"config map: 'wrong', not found\"\n"),
+			expectedBodyWhenHTTPError: fmt.Sprintf("error during mutation: \"%s\"\n", ConfigMapNotFoundErr{}.Error()),
 		},
 	}
 
-	clusterName := "foobar"
 	whsvr := &Webhook{
 		ClusterName: clusterName,
 		Server:      &http.Server{},
@@ -149,6 +151,102 @@ func TestServeHTTP(t *testing.T) {
 			NewEnvVarMutator(clusterName),
 			NewSidecarMutator(clusterName, makeConfigMapRetriever("default", configName, map[string]string{"config.yaml": integrationConfig})),
 		},
+		IgnoreNamespaces: []string{metav1.NamespaceSystem, metav1.NamespacePublic},
+	}
+
+	server := httptest.NewServer(whsvr)
+	defer server.Close()
+
+	ja := jsonassert.New(t)
+	for i, c := range cases {
+		t.Run(fmt.Sprintf("[%d] %s", i, c.name), func(t *testing.T) {
+
+			t.Log(c.name)
+			resp, err := http.Post(server.URL, c.contentType, bytes.NewReader(c.requestBody))
+			require.NoError(t, err)
+			require.Equal(t, c.expectedStatusCode, resp.StatusCode)
+
+			gotBody, err := ioutil.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			var gotReview v1beta1.AdmissionReview
+			if err := json.Unmarshal(gotBody, &gotReview); err != nil {
+				require.Equal(t, c.expectedBodyWhenHTTPError, string(gotBody))
+			} else {
+				ja.Assertf(string(gotReview.Response.Patch), string(c.expectedAdmissionReview.Response.Patch))
+			}
+		})
+	}
+
+}
+
+func TestServeHTTPIgnoreNamespaces(t *testing.T) {
+	expectedEnvVarsPatchForValidBody := loadTestData(t, "expectedEnvVarsAdmissionReviewPatch.json")
+
+	patchTypeForValidBody := v1beta1.PatchTypeJSONPatch
+	cases := []struct {
+		name                      string
+		requestBody               []byte
+		contentType               string
+		expectedStatusCode        int
+		expectedBodyWhenHTTPError string
+		expectedAdmissionReview   v1beta1.AdmissionReview
+	}{
+		{
+			name:               "mutation applied - namespace kube-system",
+			requestBody:        makeTestData(t, "kube-system", nil),
+			contentType:        "application/json",
+			expectedStatusCode: http.StatusOK,
+			expectedAdmissionReview: v1beta1.AdmissionReview{
+				Response: &v1beta1.AdmissionResponse{
+					UID:       types.UID(1),
+					Allowed:   true,
+					Result:    nil,
+					Patch:     expectedEnvVarsPatchForValidBody,
+					PatchType: &patchTypeForValidBody,
+				},
+			},
+		},
+		{
+			name:               "mutation applied - namespace kube-public",
+			requestBody:        makeTestData(t, "kube-public", nil),
+			contentType:        "application/json",
+			expectedStatusCode: http.StatusOK,
+			expectedAdmissionReview: v1beta1.AdmissionReview{
+				Response: &v1beta1.AdmissionResponse{
+					UID:       types.UID(1),
+					Allowed:   true,
+					Result:    nil,
+					Patch:     expectedEnvVarsPatchForValidBody,
+					PatchType: &patchTypeForValidBody,
+				},
+			},
+		},
+		{
+			name:               "mutation not applied - namespace testing ignored",
+			requestBody:        makeTestData(t, "testing", nil),
+			contentType:        "application/json",
+			expectedStatusCode: http.StatusOK,
+			expectedAdmissionReview: v1beta1.AdmissionReview{
+				Response: &v1beta1.AdmissionResponse{
+					UID:       types.UID(1),
+					Allowed:   true,
+					Result:    nil,
+					Patch:     nil,
+					PatchType: nil,
+				},
+			},
+		},
+	}
+
+	whsvr := &Webhook{
+		ClusterName: clusterName,
+		Server:      &http.Server{},
+		Mutators: []podMutator{
+			NewEnvVarMutator(clusterName),
+			NewSidecarMutator(clusterName, makeConfigMapRetriever("default", configName, map[string]string{"config.yaml": integrationConfig})),
+		},
+		IgnoreNamespaces: []string{"testing"},
 	}
 
 	server := httptest.NewServer(whsvr)
@@ -175,13 +273,11 @@ func TestServeHTTP(t *testing.T) {
 			assert.Equal(t, c.expectedAdmissionReview, gotReview)
 		})
 	}
-
 }
 
 func Benchmark_EnvVarWebhookPerformance(b *testing.B) {
 	body := makeTestData(b, "default", map[string]string{})
 
-	clusterName := "foobar"
 	whsvr := &Webhook{
 		ClusterName: clusterName,
 		Server: &http.Server{
@@ -203,7 +299,6 @@ func Benchmark_EnvVarWebhookPerformance(b *testing.B) {
 
 func Benchmark_SidecarWebhookPerformance(b *testing.B) {
 	namespace := "default"
-	configName := "my-config"
 	body := makeTestData(b, namespace, map[string]string{"newrelic.com/integrations-sidecar-configmap": configName})
 	clusterName := "mycluster"
 	whsvr := &Webhook{

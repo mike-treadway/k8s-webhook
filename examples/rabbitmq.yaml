@@ -1,3 +1,142 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rabbitmq-config
+  namespace: default
+data:
+  enabled_plugins: |
+    [rabbitmq_management,rabbitmq_peer_discovery_k8s].
+  rabbitmq.conf: |
+    ## Cluster formation. See http://www.rabbitmq.com/cluster-formation.html to learn more.
+    cluster_formation.peer_discovery_backend  = rabbit_peer_discovery_k8s
+    cluster_formation.k8s.host = kubernetes.default.svc.cluster.local
+    ## Should RabbitMQ node name be computed from the pod's hostname or IP address?
+    ## IP addresses are not stable, so using [stable] hostnames is recommended when possible.
+    ## Set to "hostname" to use pod hostnames.
+    ## When this value is changed, so should the variable used to set the RABBITMQ_NODENAME
+    ## environment variable.
+    cluster_formation.k8s.address_type = ip
+    ## How often should node cleanup checks run?
+    cluster_formation.node_cleanup.interval = 30
+    ## Set to false if automatic removal of unknown/absent nodes
+    ## is desired. This can be dangerous, see
+    ##  * http://www.rabbitmq.com/cluster-formation.html#node-health-checks-and-cleanup
+    ##  * https://groups.google.com/forum/#!msg/rabbitmq-users/wuOfzEywHXo/k8z_HWIkBgAJ
+    cluster_formation.node_cleanup.only_log_warning = true
+    cluster_partition_handling = autoheal
+    ## See http://www.rabbitmq.com/ha.html#master-migration-data-locality
+    queue_master_locator=min-masters
+    ## See http://www.rabbitmq.com/access-control.html#loopback-users
+    loopback_users.guest = false
+---
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  name: rabbitmq
+  namespace: default
+spec:
+  serviceName: rabbitmq
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+      annotations:
+        newrelic.com/integrations-sidecar-configmap: "rabbitmq-newrelic-integrations-config"
+        newrelic.com/integrations-sidecar-imagename: "newrelic/k8s-nri-rabbitmq"
+    spec:
+      serviceAccountName: rabbitmq
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: rabbitmq-k8s
+          image: rabbitmq:3.7-management
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/rabbitmq
+          ports:
+            - name: http
+              protocol: TCP
+              containerPort: 15672
+            - name: amqp
+              protocol: TCP
+              containerPort: 5672
+          livenessProbe:
+            exec:
+              command: ["rabbitmqctl", "status"]
+            initialDelaySeconds: 60
+            # See https://www.rabbitmq.com/monitoring.html for monitoring frequency recommendations.
+            periodSeconds: 60
+            timeoutSeconds: 15
+          readinessProbe:
+            exec:
+              command: ["rabbitmqctl", "status"]
+            initialDelaySeconds: 20
+            periodSeconds: 60
+            timeoutSeconds: 10
+          imagePullPolicy: Always
+          env:
+            - name: MY_POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: RABBITMQ_USE_LONGNAME
+              value: "true"
+            # See a note on cluster_formation.k8s.address_type in the config file section
+            - name: RABBITMQ_NODENAME
+              value: "rabbit@$(MY_POD_IP)"
+            - name: K8S_SERVICE_NAME
+              value: "rabbitmq"
+            - name: RABBITMQ_ERLANG_COOKIE
+              value: "mycookie"
+      volumes:
+        - name: config-volume
+          configMap:
+            name: rabbitmq-config
+            items:
+              - key: rabbitmq.conf
+                path: rabbitmq.conf
+              - key: enabled_plugins
+                path: enabled_plugins
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rabbitmq-newrelic-integrations-config
+  namespace: default
+data:
+  config.yaml: |
+    integration_name: com.newrelic.rabbitmq
+    instances:
+      - name: rabbitmq
+        command: "all"
+        arguments:
+          username: guest
+          password: guest
+        labels:
+          env: production
+          role: rabbitmq
+  definition.yaml: |
+    name: com.newrelic.rabbitmq
+    description: Reports status and metrics for rabbitmq service
+    protocol_version: 1
+    os: linux
+    commands:
+      all:
+        command:
+          - ./bin/nr-rabbitmq
+        prefix: config/rabbitmq
+        interval: 30
+      inventory:
+        command:
+          - ./bin/nr-rabbitmq
+          - -inventory
+        prefix: config/rabbitmq
+        interval: 30
+      events:
+        command:
+          - ./bin/nr-rabbitmq
+          - -events
+        interval: 30
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -51,143 +190,3 @@ spec:
      nodePort: 30672
   selector:
     app: rabbitmq
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: rabbitmq-config
-  namespace: default
-data:
-  enabled_plugins: |
-      [rabbitmq_management,rabbitmq_peer_discovery_k8s].
-  rabbitmq.conf: |
-      ## Cluster formation. See http://www.rabbitmq.com/cluster-formation.html to learn more.
-      cluster_formation.peer_discovery_backend  = rabbit_peer_discovery_k8s
-      cluster_formation.k8s.host = kubernetes.default.svc.cluster.local
-      ## Should RabbitMQ node name be computed from the pod's hostname or IP address?
-      ## IP addresses are not stable, so using [stable] hostnames is recommended when possible.
-      ## Set to "hostname" to use pod hostnames.
-      ## When this value is changed, so should the variable used to set the RABBITMQ_NODENAME
-      ## environment variable.
-      cluster_formation.k8s.address_type = ip
-      ## How often should node cleanup checks run?
-      cluster_formation.node_cleanup.interval = 30
-      ## Set to false if automatic removal of unknown/absent nodes
-      ## is desired. This can be dangerous, see
-      ##  * http://www.rabbitmq.com/cluster-formation.html#node-health-checks-and-cleanup
-      ##  * https://groups.google.com/forum/#!msg/rabbitmq-users/wuOfzEywHXo/k8z_HWIkBgAJ
-      cluster_formation.node_cleanup.only_log_warning = true
-      cluster_partition_handling = autoheal
-      ## See http://www.rabbitmq.com/ha.html#master-migration-data-locality
-      queue_master_locator=min-masters
-      ## See http://www.rabbitmq.com/access-control.html#loopback-users
-      loopback_users.guest = false
----
-apiVersion: apps/v1beta1
-kind: StatefulSet
-metadata:
-  name: rabbitmq
-  namespace: default
-spec:
-  serviceName: rabbitmq
-  replicas: 3
-  template:
-    metadata:
-      labels:
-        app: rabbitmq
-      annotations:
-        newrelic.com/integrations-sidecar-configmap: "rabbitmq-newrelic-integrations-config"
-        newrelic.com/integrations-sidecar-imagename: "newrelic/k8s-nri-rabbitmq"
-    spec:
-      serviceAccountName: rabbitmq
-      terminationGracePeriodSeconds: 10
-      containers:        
-      - name: rabbitmq-k8s
-        image: rabbitmq:3.7-management
-        volumeMounts:
-          - name: config-volume
-            mountPath: /etc/rabbitmq
-        ports:
-          - name: http
-            protocol: TCP
-            containerPort: 15672
-          - name: amqp
-            protocol: TCP
-            containerPort: 5672
-        livenessProbe:
-          exec:
-            command: ["rabbitmqctl", "status"]
-          initialDelaySeconds: 60
-          # See https://www.rabbitmq.com/monitoring.html for monitoring frequency recommendations.
-          periodSeconds: 60
-          timeoutSeconds: 15
-        readinessProbe:
-          exec:
-            command: ["rabbitmqctl", "status"]
-          initialDelaySeconds: 20
-          periodSeconds: 60
-          timeoutSeconds: 10
-        imagePullPolicy: Always
-        env:
-          - name: MY_POD_IP
-            valueFrom:
-              fieldRef:
-                fieldPath: status.podIP
-          - name: RABBITMQ_USE_LONGNAME
-            value: "true"
-          # See a note on cluster_formation.k8s.address_type in the config file section
-          - name: RABBITMQ_NODENAME
-            value: "rabbit@$(MY_POD_IP)"
-          - name: K8S_SERVICE_NAME
-            value: "rabbitmq"
-          - name: RABBITMQ_ERLANG_COOKIE
-            value: "mycookie" 
-      volumes:
-        - name: config-volume
-          configMap:
-            name: rabbitmq-config
-            items:
-            - key: rabbitmq.conf
-              path: rabbitmq.conf
-            - key: enabled_plugins
-              path: enabled_plugins
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: rabbitmq-newrelic-integrations-config
-  namespace: default
-data:
-  config.yaml: |
-    integration_name: com.newrelic.rabbitmq
-    instances:
-      - name: rabbitmq
-        command: "all"
-        arguments:
-          username: guest
-          password: guest
-        labels:
-          env: production
-          role: rabbitmq
-  definition.yaml: |
-    name: com.newrelic.rabbitmq
-    description: Reports status and metrics for rabbitmq service
-    protocol_version: 1
-    os: linux
-    commands:
-      all:
-        command:
-          - ./bin/nr-rabbitmq
-        prefix: config/rabbitmq
-        interval: 30
-      inventory:
-        command:
-          - ./bin/nr-rabbitmq
-          - -inventory
-        prefix: config/rabbitmq
-        interval: 30
-      events:
-        command:
-          - ./bin/nr-rabbitmq
-          - -events
-        interval: 30

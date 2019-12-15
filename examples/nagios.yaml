@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nagios-newrelic-integrations-config
+  namespace: default
+data:
+  config.yaml: |
+    integration_name: com.newrelic.nagios
+
+    instances:
+      - name: nagios
+        command: metrics
+        arguments:
+          service_checks_config: /etc/newrelic-infra/integrations.d/service_checks.yml
+  definition.yaml: |
+    name: com.newrelic.nagios
+    description: Reports status and metrics for nagios service
+    protocol_version: 2
+    os: linux
+
+    commands:
+      metrics:
+        command:
+          - ./bin/nr-nagios
+          - --metrics
+        interval: 15
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nagios-servicechecks-test
+  namespace: default
+data:
+  service_checks.yml: |
+    service_checks:
+      - name: check_users
+        command: ["/usr/local/nagios/libexec/check_users", "-w", "5", "-c", "10"]
+        labels:
+          env: staging
+          key1: val1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nagios-deployment
+  labels:
+    app: nagios
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nagios
+  template:
+    metadata:
+      annotations:
+        newrelic.com/integrations-sidecar-configmap: "nagios-newrelic-integrations-config"
+        newrelic.com/integrations-sidecar-imagename: "newrelic/k8s-nri-nagios"
+      labels:
+        app: nagios
+    spec:
+      containers:
+      - name: nagios
+        image: jasonrivers/nagios:4.4.3
+        volumeMounts:
+          - name: nagios-servicechecks-test-file
+            mountPath: /etc/newrelic-infra/integrations.d
+      volumes:
+        - name: nagios-servicechecks-test-file
+          configMap:
+            name: nagios-servicechecks-test
+            defaultMode: 0600

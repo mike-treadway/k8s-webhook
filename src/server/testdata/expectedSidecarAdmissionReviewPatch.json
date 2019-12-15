@@ -65,6 +65,18 @@
         "op": "add",
         "path": "/spec/containers/0/env/-",
         "value": {
+            "name": "NRIA_DISPLAY_NAME",
+            "valueFrom": {
+                "fieldRef": {
+                    "fieldPath": "spec.nodeName"
+                }
+            }
+        }
+    },
+    {
+        "op": "add",
+        "path": "/spec/containers/0/env/-",
+        "value": {
             "name": "NEW_RELIC_METADATA_KUBERNETES_DEPLOYMENT_NAME",
             "value": "test"
         }
@@ -135,6 +147,18 @@
         "op": "add",
         "path": "/spec/containers/1/env/-",
         "value": {
+            "name": "NRIA_DISPLAY_NAME",
+            "valueFrom": {
+                "fieldRef": {
+                    "fieldPath": "spec.nodeName"
+                }
+            }
+        }
+    },
+    {
+        "op": "add",
+        "path": "/spec/containers/1/env/-",
+        "value": {
             "name": "NEW_RELIC_METADATA_KUBERNETES_DEPLOYMENT_NAME",
             "value": "test"
         }
@@ -183,6 +207,14 @@
                     "value": "newrelic/image:latest"
                 },
                 {
+                    "name": "NRIA_DISPLAY_NAME",
+                    "valueFrom": {
+                        "fieldRef": {
+                            "fieldPath": "spec.nodeName"
+                        }
+                    }
+                },
+                {
                     "name": "NEW_RELIC_METADATA_KUBERNETES_DEPLOYMENT_NAME",
                     "value": "test"
                 },
@@ -196,22 +228,50 @@
                 {
                     "name": "K8S_INTEGRATION",
                     "value": "true"
+                },
+                {
+                    "name": "NRIA_AGENT_DIR",
+                    "value": "/nri-sidecar/newrelic-infra"
                 }
             ],
-            "resources": {},
+            "resources": {
+                "requests": {
+                    "cpu": "100m",
+                    "memory": "64Mi"
+                }
+            },
             "volumeMounts": [
                 {
                     "name": "integration-config",
-                    "mountPath": "/var/db/newrelic-infra/integrations.d/integration.yaml",
+                    "mountPath": "/nri-sidecar/newrelic-infra/integrations.d/integration.yaml",
                     "subPath": "config.yaml"
                 },
                 {
                     "name": "integration-config",
-                    "mountPath": "/var/db/newrelic-infra/newrelic-integrations/definition.yaml",
+                    "mountPath": "/nri-sidecar/newrelic-infra/newrelic-integrations/definition.yaml",
                     "subPath": "definition.yaml"
+                },
+                {
+                    "name": "tmpfs-data",
+                    "mountPath": "/nri-sidecar/newrelic-infra/data"
+                },
+                {
+                    "name": "tmpfs-user-data",
+                    "mountPath": "/nri-sidecar/newrelic-infra/user_data"
+                },
+                {
+                    "name": "tmpfs-tmp",
+                    "mountPath": "/tmp"
                 }
             ],
-            "imagePullPolicy": "IfNotPresent"
+            "imagePullPolicy": "IfNotPresent",
+            "securityContext": {
+                "privileged": false,
+                "runAsUser": 1000,
+                "runAsNonRoot": true,
+                "readOnlyRootFilesystem": false,
+                "allowPrivilegeEscalation": false
+            }
         }
     },
     {
@@ -222,6 +282,27 @@
             "configMap": {
                 "name": "my-config"
             }
+        }
+    },
+    {
+        "op": "add",
+        "path": "/spec/volumes/-",
+        "value": {
+            "name": "tmpfs-data"
+        }
+    },
+    {
+        "op": "add",
+        "path": "/spec/volumes/-",
+        "value": {
+            "name": "tmpfs-user-data"
+        }
+    },
+    {
+        "op": "add",
+        "path": "/spec/volumes/-",
+        "value": {
+            "name": "tmpfs-tmp"
         }
     },
     {

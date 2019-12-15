@@ -18,10 +18,16 @@ spec:
       - name: newrelic-webhook-injector
         image: newrelic/k8s-webhook:latest
         env:
+      #  - name: NEW_RELIC_K8S_WEBHOOK_IGNORE_NAMESPACES
+      #    value: "kube-system,kube-public"
         - name: clusterName
           value: "<YOUR_CLUSTER_NAME>"
         - name: NRIA_LICENSE_KEY
-          value: "<NRIA_LICENSE_KEY>"
+          #value: "<NRIA_LICENSE_KEY>"
+          valueFrom:
+            secretKeyRef:
+              name: newrelic-agent-secret
+              key: nria-license-key
         volumeMounts:
         - name: tls-key-cert-pair
           mountPath: /etc/tls-key-cert-pair
@@ -46,7 +52,7 @@ metadata:
 spec:
   ports:
   - port: 443
-    targetPort: 443
+    targetPort: 8443
   selector:
     app: newrelic-webhook
 ---

@@ -1,10 +1,14 @@
 # Kubernetes webhook for New Relic
 
-## How does it work?
+To note that this tool is in an early stage of development and some breaking changes might happen. We not recommend using `:latest` tag for neither the webhook or the integration images. You can check the integration version requirements in the [dependencies](####dependencies) section
 
-The webhook intercepts POD creation requests to the Kubernetes API and mutates them in the following ways:
+## Definition
 
-* Injects the following environment variables needed by the APM agents to identify Kubernetes objects
+The webhook intercepts *POD creation* requests to the Kubernetes API and mutates them in the following ways:
+
+* Enables the **monitoring of services running in pods**, by injecting a *sidecar* containing the agent and relevant integration into all labelled pods.
+
+* Injects APM agents **required metadata** to identify Kubernetes objects. The following *environment variables* are injected:
 
     - `NEW_RELIC_METADATA_KUBERNETES_CLUSTER_NAME`
     - `NEW_RELIC_METADATA_KUBERNETES_NODE_NAME`
@@ -14,38 +18,34 @@ The webhook intercepts POD creation requests to the Kubernetes API and mutates t
     - `NEW_RELIC_METADATA_KUBERNETES_CONTAINER_NAME`
     - `NEW_RELIC_METADATA_KUBERNETES_CONTAINER_IMAGE_NAME`
 
-    These environment variables can be set manually by the customer, or they can be automatically injected using a MutatingAdmissionWebhook.
-    New Relic provides an easy method for deploying this automatic approach.
+    These environment variables can either be automatically injected using a `MutatingAdmissionWebhook`, or be set manually by the customer. 
 
-* Enables the monitoring of services running in pods, by injecting a sidecar containing the agent and relevant integration into all marked pods.
+    New Relic provides an easy method for deploying this automatic approach.
+    
+The `newrelic-webhook-svc` service internally exposes two ports:
+
+* `8443`, required by the service. It can be configured in the `newrelic-webhook.yml` deployment file:
+   https://github.com/newrelic/k8s-webhook/blob/master/deploy/newrelic-webhook.yaml#L55
+* `8080`, required for health check of the service.
+
 ## Setup
 
-### 1) Check if MutatingAdmissionWebhook is enabled on your cluster
+### 1) Requirements
 
-This feature requires Kubernetes 1.9 or later. Verify that the kube-apiserver process has the admission-control flag set.
+Check if MutatingAdmissionWebhook is enabled on your cluster. This feature requires *Kubernetes 1.9* or later. Verify that the kube-apiserver process has the admission-control flag set.
 
 ```
 $ kubectl api-versions | grep admissionregistration.k8s.io/v1beta1
 admissionregistration.k8s.io/v1beta1
 ```
 
-### 2) Install the certificates
+
+### 2) Install certificate
 
 This webhook needs to be authenticated by the Kubernetes extension API server, so it will need to have a signed certificate from a CA trusted by the extension API server. The certificate management is isolated from the webhook server and a secret is used to mount them. 
 
-**Important**: the webhook server has a file watcher pointed at the secret's folder that will trigger a certificate reload whenever anything is created or modified inside the secret. This allows easy certificate rotation with an update of the TLS secret that is created by running:
 
-```bash
-$ namespace=default # Change the namespace here if you also changed it in the yaml files.
-$ serverCert=$(kubectl get csr newrelic-webhook-svc.${namespace} -o jsonpath='{.status.certificate}')
-$ tmpdir=$(mktemp -d)
-$ echo ${serverCert} | openssl base64 -d -A -out ${tmpdir}/server-cert.pem
-$ kubectl patch secret newrelic-webhook-secret --type='json' \
-    -p "[{'op': 'replace', 'path':'/data/tls.crt', 'value':'$(serverCert)'}]"
-$ rm -rf $(tmpdir)
-```
-
-#### Automatic management
+#### Automatic installation
 
 The certificate management can be automatic, using the Kubernetes extension API server (recommended, but optional):
 
@@ -61,7 +61,7 @@ This manifest contains a service account that has the following **cluster** perm
 * `Secrets` - **create**, **get** and **patch**: to be able to manage the TLS secret used to store the key/cert pair used in the webhook server.
 * `ConfigMaps` - **get**: to be able go get the k8s api server's CA bundle, used in the MutatingWebhookConfiguration.
 
-This job will execute the shell script [k8s-webhook-cert-manager/generate_certificate.sh](./k8s-webhook-cert-manager/generate_certificate.sh) to setup everything. This script will:
+This job will execute the shell script [k8s-webhook-cert-manager/generate_certificate.sh](https://github.com/newrelic/k8s-webhook-cert-manager/blob/master/generate_certificate.sh) to setup everything. This script will:
 
 1. Generate a server key.
 2. If there is any previous CSR (certificate signing request) for this key, it is deleted.
@@ -74,19 +74,96 @@ This job will execute the shell script [k8s-webhook-cert-manager/generate_certif
 
 If you wish to learn more about TLS certificates management inside Kubernetes, check out [the official documentation for Managing TLS Certificate in a Cluster](https://kubernetes.io/docs/tasks/tls/managing-tls-in-a-cluster/#create-a-certificate-signing-request-object-to-send-to-the-kubernetes-api).
 
-#### Manual management
+#### Manual installation
 
-Otherwise, if you are managing the certificate manually you will have to create the TLS secret with the signed certificate/key pair and patch the webhook's CA bundle:
+Otherwise, if you are managing the certificate manually you will have to create the TLS secret with the signed certificate/key pair and patch the webhook's CA bundle.
 
-```bash
-$ kubectl create secret tls newrelic-webhook-secret \
-      --key=server-key.pem \
-      --cert=signed-server-cert.pem \
-      --dry-run -o yaml |
-  kubectl -n default apply -f -
+This option will be relevant in case you don't want to grant CSR approval permissions to the webhook service-account generated on the automatic job mentioned above.
 
-$ caBundle=$(cat caBundle.pem | base64 | td -d '\n')
-$ kubectl patch mutatingwebhookconfiguration newrelic-webhook-cfg --type='json' -p "[{'op': 'replace', 'path': '/webhooks/0/clientConfig/caBundle', 'value':'${caBundle}'}]"
+We provide a couple scripts for this purpose.
+
+```
+cert
+├── generate_certificate.sh
+└── generate_csr.sh
+```
+
+> `openssl` is required for these scripts
+
+##### generate_csr.sh
+```
+Generate certificate signing request suitable for use with New Relic Mutating Webhook.
+The server key/cert k8s CA cert are stored in a k8s secret.
+usage: ${0} [OPTIONS]
+
+Supported options are:
+    --help               [Optional] Display this help message.
+    --key <path>         [Optional] Path for a key to the create the certificate in PEM format. Def: autogenerated.
+    --namespace <ns>     [Optional] Namespace for the webhook and secret. Def: default.
+```
+
+##### cert/generate_certificate.sh
+
+````
+The server key/cert k8s CA cert are stored in a k8s secret.
+usage: ${0} [OPTIONS] <key_file>
+
+<key_file>: file path for the key to generate the certificate in PEM format.
+
+Options are:
+    --help               [Optional] Display this help message.
+    --namespace <ns>     [Optional] Namespace for the webhook and secret. Def: default.
+````
+
+
+##### Steps
+
+1. Run `cert/generate_csr.sh` to **generate a CSR** from a provided (or automatically generated) key
+2. **Approve** the CSR following the output of the previous script.
+   * This might look like: `kubectl certificate approve "newrelic-webhook-svc.default"`
+3. Run `cert/generate_certificate.sh` to generate and **install the certificate** for the approved CSR.
+
+##### Example
+
+1. Generate CSR:
+
+```
+$ cert/generate_csr.sh
+
+INFO: creating certificate files in tmpdir /tmp/foo/
+Generating RSA private key, 2048 bit long modulus
+  ...................................................+++
+  ...................................................+++
+  e is 65537 (0x10001)
+certificatesigningrequest.certificates.k8s.io/newrelic-webhook-svc.default created
+
+K8s CSR:  newrelic-webhook-svc.default
+Key file: /tmp/foo/server-key.pem
+
+Remaining steps:
+Approve CSR:                    kubectl certificate approve "newrelic-webhook-svc.default"
+Sign and install certiticate:   cert/generate_certificate.sh /tmp/foo/server-key.pem
+```
+
+2. Approve CSR
+
+```
+$ kubectl certificate approve "newrelic-webhook-svc.default"
+```
+
+
+3. Generate and install certificate
+
+```
+$ cert/generate_certificate.sh /tmp/foo/server-key.pem
+
+INFO: checking CSR...
+  NAME                           AGE   REQUESTOR       CONDITION
+  newrelic-webhook-svc.default   11m   minikube-user   Approved,Issued
+INFO: creating certificate files in tmpdir /var/bar/
+secret/newrelic-webhook-secret created
+INFO: Trying to patch webhook adding the caBundle...
+mutatingwebhookconfiguration.admissionregistration.k8s.io/newrelic-webhook-cfg patched
 ```
 
 Either certificate management choice made, the important thing is to have the secret created with the correct name and namespace. As long as this is done the webhook server will be able to pick it up.
@@ -95,6 +172,16 @@ Either certificate management choice made, the important thing is to have the se
 
 ### 3) Install the injection
 
+If you choose to set the license key environment variable from a secret, execute the following command:
+```bash
+kubectl create secret generic newrelic-agent-secret --from-literal=nria-license-key='<NRIA_LICENSE_KEY>'
+```
+
+Otherwise, you can open `deploy/newrelic-webhook.yaml` and edit `NRIA_LICENSE_KEY` environment variable. Uncomment `#value: "<NRIA_LICENSE_KEY>"`, set your license key and comment/remove the `valueFrom` block.
+
+Edit `deploy/newrelic-webhook.yaml` to configure the variable `clusterName`
+
+Then execute the following command:
 ```bash
 $ kubectl apply -f deploy/newrelic-webhook.yaml
 ```
@@ -118,7 +205,7 @@ A sidecar will be injected into all pods having the `newrelic.com/integrations-s
 The `newrelic.com/integrations-sidecar-imagename` annotation is used to specify the sidecar image to be injected.
 
 The injector expects the config map to have a `config.yaml` file and an optional `definition.yaml` file, which are the usual configurations for integrations.
-The two will be mounted to `/var/db/newrelic-infra/integrations.d/integration.yaml` and `/var/db/newrelic-infra/newrelic-integrations/definition.yaml` respectively
+The two will be mounted to `/nri-sidecar/newrelic-infra/integrations.d/integration.yaml` and `/nri-sidecar/newrelic-infra/newrelic-integrations/definition.yaml` respectively
 and overwrite any of these if already present in the sidecar image.
 
 Passwords and other secret information passed as arguments to the integrations can be suplied as an environment variable backed by a kubernetes secret. If the name
@@ -126,9 +213,90 @@ of an integration argument starts with `$`, the injector assumes this refers to 
 
 The agent license and other agent configuration environment variables can be added to the injector deployment and they will be all copied to the injected sidecars.
 
+### 6) Upgrading
+
+#### Webhook
+In order to configure the way the webhook is updated, you can specify the `imagePullPolicy` in the `deploy/newrelic-webhook.yaml` file. If not specified, the default `imagePullPolicy` is `IfNotPresent` unless the image version is `:latest` in which case the image will be pulled every time. For more information read the kubernetes [official documentation](https://kubernetes.io/docs/concepts/containers/images/#updating-images).
+
+In order to update the webhook we recommend configuring a specific version for the webhook image in the `deploy/newrelic-webhook.yaml` file.
+
+e.g.:
+
+```
+containers:
+      - name: newrelic-webhook-injector
+        image: newrelic/k8s-webhook:0.0.3
+```
+
+#### Integration (sidecar)
+The injected sidecar container has the `imagePullPolicy` configured to `IfNotPresent` meaning that the integration image is pulled only if it is not already present locally. In order to update the integration to a newer version we recommend configuring in you're deployment file a version for the newrelic sidecar `newrelic.com/integrations-sidecar-imagename` annotation.
+
+e.g.:
+
+```
+newrelic.com/integrations-sidecar-imagename: "newrelic/k8s-nri-apache:1.3.0"
+```
+
+Integrations in K8s are in private Alpha for the moment, [official documentation](https://docs.newrelic.com/) will be published soon.
+
+#### Dependencies
+
+You can check in the table bellow the minimum integration version required by specific webhook version:
+
+| Integration           |k8s-webhook v0.0.3|
+|-----------------------|:-----------------
+| k8s-nri-nginx         | >=1.3.0.1
+| k8s-nri-elasticsearch | >=4.1.0.1
+| k8s-nri-mysql         | >=1.3.0.1
+| k8s-nri-cassandra     | >=2.2.0.1
+| k8s-nri-jmx           | >=2.2.4.1
+| k8s-nri-rabbitmq      | >=2.1.0.1
+| k8s-nri-redis         | >=1.2.1.1
+| k8s-nri-kafka         | >=2.3.1.1
+| k8s-nri-postgresql    | >=2.1.3.1
+| k8s-nri-apache        | >=1.3.0.1
+| k8s-nri-mongodb       | >=2.2.0.1
+| k8s-nri-nagios        | >=2.1.2.1
+| k8s-nri-consul        | >=2.0.2.1
+| k8s-nri-couchbase     | >=2.0.2.1
+| k8s-nri-haproxy       | >=2.0.2.1
+| k8s-nri-memcached     | >=2.0.0.1
+| k8s-nri-f5            | >=2.0.0.1
+
 #### Example configuration:
 
 ```
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-newrelic-integrations-config
+  namespace: default
+data:
+  config.yaml: |
+    integration_name: com.newrelic.mysql
+    instances:
+      - name: mysql-server
+        command: status
+        arguments:
+          hostname: localhost
+          port: 3306
+          username: root
+          password: $MYSQL_ROOT_PASSWORD
+        labels:
+          env: testenv
+          role: write-replica
+  definition.yaml: |
+    name: com.newrelic.mysql
+    description: Reports status and metrics for mysql server
+    protocol_version: 1
+    os: linux
+    commands:
+        status:
+            command:
+                - /nri-sidecar/newrelic-infra/newrelic-integrations/bin/nr-mysql
+            prefix: config/mysql
+            interval: 30
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -157,37 +325,20 @@ spec:
               secretKeyRef:
                 name: mysecret
                 key: password
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: mysql-newrelic-integrations-config
-  namespace: default
-data:
-  config.yaml: |
-    integration_name: com.newrelic.mysql
-    instances:
-      - name: mysql-server
-        command: status
-        arguments:
-          hostname: localhost
-          port: 3306
-          username: root
-          password: $MYSQL_ROOT_PASSWORD
-        labels:
-          env: testenv
-          role: write-replica
-  definition.yaml: |
-    name: com.newrelic.mysql
-    description: Reports status and metrics for mysql server
-    protocol_version: 1
-    os: linux
-    commands:
-        status:
-            command:
-                - /var/db/newrelic-infra/newrelic-integrations/bin/nr-mysql
-            prefix: config/mysql
-            interval: 30
+```
+
+## Certificate rotation
+
+The webhook server has a file watcher pointed at the secret's folder that will trigger a certificate reload whenever anything is created or modified inside the secret. This allows easy certificate rotation with an update of the TLS secret that is created by running:
+
+```bash
+$ namespace=default # Change the namespace here if you also changed it in the yaml files.
+$ serverCert=$(kubectl get csr newrelic-webhook-svc.${namespace} -o jsonpath='{.status.certificate}')
+$ tmpdir=$(mktemp -d)
+$ echo ${serverCert} | openssl base64 -d -A -out ${tmpdir}/server-cert.pem
+$ kubectl patch secret newrelic-webhook-secret --type='json' \
+    -p "[{'op': 'replace', 'path':'/data/tls.crt', 'value':'$(serverCert)'}]"
+$ rm -rf $(tmpdir)
 ```
 
 ## Development
@@ -213,11 +364,29 @@ Currently for K8s libraries it uses version 1.13.1. Only couple of libraries are
 * Edit the file and set the following value as container image: `internal/newrelic-webhook-injector`.
 * Make sure that `imagePullPolicy: Always` is not present in the file (otherwise, the image won't be pulled).
 
+#### Configuring Horizontal Pod Autoscaler
+
+If you have defined a HPA for a pod that will be monitored with New Relic Infrastructure Agent, you will have to take into account the New Relic sidecar resource request when defining the auto scaling threshold. This is because the resource request/limit are set on the container level while the auto scaling threshold is set on pod. For more information read the [official documentation](https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/#resource-requests-and-limits-of-pod-and-container) for Resource requests and limits of Pod and Container.
+
+The New Relic sidecar will have defined by default values for CPU and memory resource request:
+ * `cpu: "100m"`
+ * `memory: "64Mi"`
+
+We suggest to take those values into account when defining the auto scaling target threshold.
+
+e.g.
+
+*  You have defined a container CPU request of `1000m` and a pod `targetCPUUtilizationPercentage` of `90%`
+we suggest that you adjust the `targetCPUUtilizationPercentage` to: Floor(90 * 1000 / 1100)) = `81%`
+
 ### Run
 
 Run `skaffold run`. This will build a docker image, build the webhook server inside it, and finally deploy the webhook server to your Minikube and use the Kubernetes API server to sign its TLS certificate ([see section about certificates](#3-install-the-certificates)).
 
 To follow the logs, you can run `skaffold run --tail`. To delete the resources created by Skaffold you can run `skaffold delete`.
+
+Please read the [Accessing the On-host integrations logs](docs/logs.md) document for more details about how to read the
+On-Host Integrations logs.
 
 If you would like to enable automatic redeploy on changes to the repository, you can run `skaffold dev`. It automatically tails the logs and delete the resources when interrupted (i.e. with a `Ctrl + C`).
 
