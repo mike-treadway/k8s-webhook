@@ -307,9 +307,7 @@
     },
     {
         "op": "add",
-        "path": "/metadata/annotations",
-        "value": {
-            "newrelic.com/integrations-sidecar-injector-status": "injected"
-        }
+        "path": "/metadata/annotations/newrelic.com~1integrations-sidecar-injector-status",
+        "value": "injected"
     }
 ]
