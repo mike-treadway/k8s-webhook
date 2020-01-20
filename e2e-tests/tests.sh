@@ -73,7 +73,7 @@ kubectl logs "$webhook_pod_name"
 
 sidecar_status=$(kubectl get pods "$pod_name" -o go-template --template='{{range .status.containerStatuses}}{{if eq .name  "newrelic-sidecar"}}{{.name}}{{" : "}}{{.state}}{{"\n"}}{{end}}{{end}}')
 case "$sidecar_status" in
-    *running*) 
+    *newrelic-sidecar*) 
         printf "Pod %s contains sidecar %s\n" "$pod_name" "$sidecar_status"
         ;;
     *)         
